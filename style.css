@@ -129,3 +129,5 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 .porcentagem-texto { position: relative; z-index: 2; width: 100%; text-align: center; font-size: 16px; font-weight: bold; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
 .btn-meta-add { background: #142b42; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 15px; transition: background 0.3s; }
 .btn-meta-add:hover { background: #188038; }
+
+.tabela-ultimos td.col-acoes { justify-content: flex-end !important; }

@@ -32,7 +32,6 @@ window.mudarAba = function(a) {
     } else if (a === 'pessoais') {
         document.getElementById('abaPessoais').style.display = 'block';
         document.getElementById('btnAbaPessoais').classList.add('ativa');
-        document.getElementById('dataGastoPessoal').value = new Date().toISOString().split('T')[0];
         carregarGastosPessoais();
     }
 };
@@ -431,6 +430,9 @@ async function carregarGastosPessoais() {
     const lista = document.getElementById('listaGastosPessoais');
     const totalSpan = document.getElementById('totalGastosPessoais');
     
+    // Limpa a tela para não mostrar nada enquanto busca
+    lista.innerHTML = ''; 
+
     const hoje = new Date();
     const mesAtual = hoje.getMonth();
     const anoAtual = hoje.getFullYear();
@@ -446,12 +448,12 @@ async function carregarGastosPessoais() {
         .order('data_gasto', { ascending: false });
 
     if (error) {
-        lista.innerHTML = '<div class="ultimos-aviso" style="color:#b3261e;">Erro ao carregar.</div>';
+        console.error("Erro no Supabase:", error);
         return;
     }
 
+    // Se não houver dados, simplesmente não faz nada (não escreve mensagem)
     if (data.length === 0) {
-        lista.innerHTML = '<div class="ultimos-aviso">Nenhuma anotação pra este mês.</div>';
         totalSpan.textContent = 'R$ 0,00';
     } else {
         let html = `<table class="tabela-ultimos"><tbody>`;
@@ -460,16 +462,15 @@ async function carregarGastosPessoais() {
         data.forEach(gasto => {
             total += parseFloat(gasto.valor);
             
-            // Estilo violeta aplicado na linha
-            html += `
+              html += `
             <tr style="background-color: #f3e8ff; border-left: 4px solid #8b5cf6; border-radius: 6px; box-shadow: 0 0 0 1px #8b5cf6;">
-                <td style="padding: 8px 4px; color: #4c1d95; border: none; background: transparent;">
+                <td style="padding: 8px 4px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left;">
                     <strong>${gasto.descricao}</strong>
                 </td>
-                <td class="col-valor" style="padding: 8px 4px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right;">
+                <td class="col-valor" style="padding: 8px 4px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap;">
                     ${formatarReal(gasto.valor)}
                 </td>
-                <td class="col-acoes" style="border: none; background: transparent; display: flex; justify-content: center; gap: 4px;">
+                <td class="col-acoes" style="border: none; background: transparent; padding: 8px 4px;">
                     <button class="btn-acao" style="color: #6b21a8;" onclick="editarGastoPessoal(${gasto.id}, '${gasto.descricao}', ${gasto.valor})">✏️</button>
                     <button class="btn-acao" style="color: #6b21a8;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
                 </td>

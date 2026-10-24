@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADM CONTAS</title>
+  <link rel="icon" type="image/png" href="porquinho.png">
+  <link rel="apple-touch-icon" href="porquinho.png">
+  <meta name="apple-mobile-web-app-title" content="ADM CONTAS">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <!-- TELA DE LOGIN -->
+  <div id="telaLogin" style="display:block">
+    <h2 style="text-align:center;color:#142b42">Acesso Restrito</h2>
+    
+    <label>Usuário</label>
+    <select id="loginUsuario" style="background:#fff; color:#142b42; text-align:center; font-weight:bold; cursor:pointer;">
+      <option value="edi@admcontas.local">Edi</option>
+      <option value="cleici@admcontas.local">Cleici</option>
+      <option value="maria@admcontas.local">Maria</option>
+    </select>
+
+    <label>Senha</label>
+    <input type="password" id="loginSenha" placeholder="Digite sua senha">
+    <button onclick="fazerLogin()">Entrar</button>
+    <div id="mensagemLogin" style="color:#b3261e;text-align:center;margin-top:10px;font-weight:bold"></div>
+  </div>
+
+  <!-- APP PRINCIPAL -->
+  <div id="appPrincipal" style="display:none">
+    <header>
+      <button class="btn-topo" id="btnAlterarSenha" onclick="abrirAlterarSenha()">Senha</button>
+      <button class="btn-topo" id="btnSair" onclick="fazerLogout()">Sair</button>
+      <h1>ADM CONTAS</h1><p>Controle de Gastos da Família</p>
+    </header>
+    
+    <main>
+            <!-- ABAS -->
+            <div class="abas-principais">
+        <button class="aba-btn ativa" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
+        <button class="aba-btn" id="btnAbaContas" onclick="mudarAba('contas')" title="Contas">💳</button>
+        <button class="aba-btn" id="btnAbaMetas" onclick="mudarAba('metas')" title="Metas">🎯</button>
+      </div>
+
+      <!-- ABA GASTOS PESSOAIS -->
+      <div id="abaPessoais" style="display:none">
+        <!-- Formulário de Lançamento Rápido (Sem data) -->
+        <div class="card" style="margin-bottom: 15px;">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações</h2>
+          <form id="formGastoPessoal">
+            <label>Descrição</label>
+            <input type="text" id="descGastoPessoal" required placeholder="Ex: Cinema, Roupas...">
+            
+            <div style="display:flex; gap:10px; margin-top:6px">
+              <div style="flex:1">
+                <label>Valor (R$)</label>
+                <input type="text" id="valGastoPessoal" inputmode="decimal" required>
+              </div>
+            </div>
+            
+            <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
+          </form>
+          <div id="msgGastoPessoal" class="msg-erro"></div>
+        </div>
+
+        <!-- Lista de Gastos -->
+        <div class="card">
+          <div id="listaGastosPessoais"><div class="ultimos-aviso">Carregando...</div></div>
+          
+          <div style="text-align: right; margin-top: 15px; font-weight: bold; font-size: 15px; color: #8b5cf6;">
+            Total: <span id="totalGastosPessoais">R$ 0,00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA CONTAS -->
+      <div id="abaContas">
+        <div class="mes-nav"><button type="button" id="mesAnterior" class="nav-btn">‹</button><div id="mesTitulo" class="mes-titulo">...</div><button type="button" id="mesProximo" class="nav-btn">›</button></div>
+        
+        <div class="card">
+          <div class="resumo-financeiro">
+            <div class="resumo-item">
+              <div class="resumo-titulo">A Pagar</div>
+              <div id="totalAPagar" class="resumo-valor vermelho">R$ 0,00</div>
+            </div>
+            <div class="resumo-item" style="border-left:1px solid #e2e8f0; border-right:1px solid #e2e8f0;">
+              <div class="resumo-titulo">Pago</div>
+              <div id="totalPago" class="resumo-valor verde">R$ 0,00</div>
+            </div>
+            <div class="resumo-item" style="display: flex; justify-content: center; align-items: center;">
+              <button type="button" class="btn-adicionar-topo" onclick="abrirPopupLancamento()">Novo Lançamento</button>
+            </div>
+          </div>
+          <div id="listaContas"><div class="ultimos-aviso">Carregando...</div></div>
+        </div>
+      </div>
+
+      <!-- ABA METAS -->
+      <div id="abaMetas" style="display:none">
+        <div id="listaMetas" style="margin-top: 10px;"></div>
+        <button type="button" id="btnAbrirPopupMeta" class="btn-flutuante" onclick="abrirPopupMeta()">+</button>
+      </div>
+
+      <!-- ABA GASTOS PESSOAIS -->
+      <div id="abaPessoais" style="display:none">
+        <!-- Formulário de Lançamento Rápido -->
+        <div class="card" style="margin-bottom: 15px;">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações</h2>
+          <form id="formGastoPessoal">
+            <label>Descrição</label>
+            <input type="text" id="descGastoPessoal" required placeholder="Ex: Cinema, Roupas...">
+            
+            <div style="display:flex; gap:10px; margin-top:6px">
+              <div style="flex:1">
+                <label>Valor (R$)</label>
+                <input type="text" id="valGastoPessoal" inputmode="decimal" required>
+              </div>
+              <div style="flex:1">
+                <label>Data</label>
+                <input type="date" id="dataGastoPessoal" required>
+              </div>
+            </div>
+            
+            <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
+          </form>
+          <div id="msgGastoPessoal" class="msg-erro"></div>
+        </div>
+
+        <!-- Lista de Gastos do Mês -->
+        <div class="card">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;" id="tituloMesPessoal">Gastos do Mês</h2>
+          <div id="listaGastosPessoais"><div class="ultimos-aviso">Carregando...</div></div>
+          
+          <div style="text-align: right; margin-top: 15px; font-weight: bold; font-size: 15px; color: #b3261e;">
+            Total: <span id="totalGastosPessoais">R$ 0,00</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- POPUP DE LANÇAMENTO -->
+  <div id="popupLancamento" class="popup-overlay" style="align-items: flex-end; padding: 0;">
+    <div class="popup-form">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Novo Lançamento</h2>
+        <button type="button" style="width:auto; margin:0; min-height:auto; background:none; color:#b3261e; font-size:20px;" onclick="fecharPopup('popupLancamento')">✕</button>
+      </div>
+      
+      <form id="formLancamento">
+        <label>Tipo de Lançamento</label>
+        <select id="tipoConta" onchange="alternarTipo()">
+            <option value="parcela">Parcela ou à Vista</option>
+            <option value="fixo">Fixo Mensal</option>
+        </select>
+        
+        <label>Categoria</label><select id="catConta" style="display:none"></select>
+        <div id="btnCatConta" class="seletor" role="button"><span id="txtCatConta">Selecione...</span><span class="seta">▾</span></div>
+        
+        <label for="descConta">Descrição</label><input id="descConta" type="text" required>
+        
+        <div style="display:flex;gap:10px;margin-top:6px">
+            <div style="flex:1"><label for="valConta">Valor (R$)</label><input id="valConta" type="text" inputmode="decimal" required></div>
+            <div style="flex:1" id="boxParcelas"><label for="parcQtdConta">Parcelas</label><input id="parcQtdConta" type="number" min="1" value="1" required></div>
+        </div>
+        
+        <label for="vencConta">Vencimento</label><input id="vencConta" type="date" required>
+        
+        <div style="display:flex;align-items:center;margin-top:6px;gap:8px"><input type="checkbox" id="pagoConta" style="width:18px;height:18px;cursor:pointer"><label for="pagoConta" style="margin:0;cursor:pointer">Já está paga?</label></div>
+        
+        <button id="btnSalvarConta" type="submit" style="margin-top:20px;">Registrar Conta</button>
+        <button id="btnCancelarEdicao" type="button" style="display:none;background:#64748b;margin-top:8px" onclick="cancelarEdicaoConta()">Cancelar Edição</button>
+      </form>
+      <div id="msgConta" class="msg-erro"></div>
+    </div>
+  </div>
+
+  <!-- POPUP DE META -->
+  <div id="popupMeta" class="popup-overlay" style="align-items: flex-end; padding: 0;">
+    <div class="popup-form">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Nova Meta</h2>
+        <button type="button" style="width:auto; margin:0; min-height:auto; background:none; color:#b3261e; font-size:20px;" onclick="fecharPopup('popupMeta')">✕</button>
+      </div>
+      
+      <form id="formMeta">
+        <label for="nomeMeta">Nome da Meta (ex: Viagem)</label><input id="nomeMeta" type="text" required>
+        <label for="valorMeta">Valor Total (R$)</label><input id="valorMeta" type="text" inputmode="decimal" required>
+        <label for="imagemMeta">Link da Imagem (URL)</label><input id="imagemMeta" type="url" placeholder="https://...">
+        
+        <button id="btnSalvarMeta" type="submit" style="margin-top:20px;">Salvar Meta</button>
+      </form>
+      <div id="msgMeta" class="msg-erro"></div>
+    </div>
+  </div>
+
+  <!-- POPUP GUARDAR DINHEIRO -->
+  <div id="popupGuardar" class="popup-overlay">
+    <div class="popup-caixa">
+      <h2 style="color:#142b42;margin-top:0">Guardar Dinheiro</h2>
+      <label>Quanto você guardou agora? (R$)</label>
+      <input type="text" id="valorGuardado" inputmode="decimal" style="margin-bottom:10px">
+      <button onclick="adicionarValorMeta()" style="background:#188038">Adicionar</button>
+      <button style="background:#64748b" onclick="fecharPopup('popupGuardar')">Cancelar</button>
+      <div id="msgGuardar" class="msg-erro"></div>
+    </div>
+  </div>
+
+  <!-- OUTROS POPUPS -->
+  <div id="popupCategorias" class="popup-overlay"><div class="categorias-caixa"><div class="categorias-titulo" id="tituloPopupCat">Escolha a categoria</div><div id="listaCategoriasPopup"></div></div></div>
+  <div id="popupSucesso" class="popup-overlay"><div class="popup-caixa"><div class="popup-icone">✓</div><div class="popup-titulo" id="tituloPopup">Sucesso!</div><img src="https://c.tenor.com/aHS-s7YCPuIAAAAd/tenor.gif" alt="Porquinho"></div></div>
+  <div id="popupSenha" class="popup-overlay"><div class="popup-caixa"><h2 style="color:#142b42;margin-top:0">Alterar Senha</h2><input type="password" id="novaSenha" placeholder="Nova senha" style="margin-bottom:10px"><button onclick="salvarNovaSenha()">Salvar</button><button style="background:#64748b" onclick="fecharPopup('popupSenha')">Cancelar</button><div id="msgSenha" class="msg-erro"></div></div></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

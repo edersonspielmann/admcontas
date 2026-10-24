@@ -38,8 +38,8 @@
     </header>
     
     <main>
-            <!-- ABAS -->
-            <div class="abas-principais">
+      <!-- ABAS -->
+      <div class="abas-principais">
         <button class="aba-btn ativa" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
         <button class="aba-btn" id="btnAbaContas" onclick="mudarAba('contas')" title="Contas">💳</button>
         <button class="aba-btn" id="btnAbaMetas" onclick="mudarAba('metas')" title="Metas">🎯</button>
@@ -49,7 +49,7 @@
       <div id="abaPessoais" style="display:none">
         <!-- Formulário de Lançamento Rápido (Sem data) -->
         <div class="card" style="margin-bottom: 15px;">
-          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações</h2>
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações pessoais</h2>
           <form id="formGastoPessoal">
             <label>Descrição</label>
             <input type="text" id="descGastoPessoal" required placeholder="Ex: Cinema, Roupas...">
@@ -77,7 +77,7 @@
       </div>
 
       <!-- ABA CONTAS -->
-      <div id="abaContas">
+      <div id="abaContas" style="display:none">
         <div class="mes-nav"><button type="button" id="mesAnterior" class="nav-btn">‹</button><div id="mesTitulo" class="mes-titulo">...</div><button type="button" id="mesProximo" class="nav-btn">›</button></div>
         
         <div class="card">
@@ -102,42 +102,6 @@
       <div id="abaMetas" style="display:none">
         <div id="listaMetas" style="margin-top: 10px;"></div>
         <button type="button" id="btnAbrirPopupMeta" class="btn-flutuante" onclick="abrirPopupMeta()">+</button>
-      </div>
-
-      <!-- ABA GASTOS PESSOAIS -->
-      <div id="abaPessoais" style="display:none">
-        <!-- Formulário de Lançamento Rápido -->
-        <div class="card" style="margin-bottom: 15px;">
-          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações</h2>
-          <form id="formGastoPessoal">
-            <label>Descrição</label>
-            <input type="text" id="descGastoPessoal" required placeholder="Ex: Cinema, Roupas...">
-            
-            <div style="display:flex; gap:10px; margin-top:6px">
-              <div style="flex:1">
-                <label>Valor (R$)</label>
-                <input type="text" id="valGastoPessoal" inputmode="decimal" required>
-              </div>
-              <div style="flex:1">
-                <label>Data</label>
-                <input type="date" id="dataGastoPessoal" required>
-              </div>
-            </div>
-            
-            <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
-          </form>
-          <div id="msgGastoPessoal" class="msg-erro"></div>
-        </div>
-
-        <!-- Lista de Gastos do Mês -->
-        <div class="card">
-          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;" id="tituloMesPessoal">Gastos do Mês</h2>
-          <div id="listaGastosPessoais"><div class="ultimos-aviso">Carregando...</div></div>
-          
-          <div style="text-align: right; margin-top: 15px; font-weight: bold; font-size: 15px; color: #b3261e;">
-            Total: <span id="totalGastosPessoais">R$ 0,00</span>
-          </div>
-        </div>
       </div>
 
     </main>

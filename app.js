@@ -477,14 +477,14 @@ async function carregarGastosPessoais() {
             const valorExibicao = gasto.valor > 0 ? formatarReal(gasto.valor) : '';
 
             html += `
-            <tr style="background-color: #f3e8ff; border-left: 4px solid #8b5cf6; border-radius: 6px; box-shadow: 0 0 0 1px #8b5cf6;">
-                <td style="padding: 2px 6px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left; font-size: 13px;">
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 4px 6px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left; font-size: 13px; border-left: 4px solid #8b5cf6;">
                     ${gasto.descricao}
                 </td>
-                <td class="col-valor" style="padding: 2px 6px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap; font-size: 13px;">
-                    ${valorExibicao}
+                <td class="col-valor" style="padding: 4px 6px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap; font-size: 13px;">
+                    ${gasto.valor > 0 ? formatarReal(gasto.valor) : ''}
                 </td>
-                <td class="col-acoes" style="border: none; background: transparent; padding: 2px 4px; vertical-align: middle;">
+                <td class="col-acoes" style="border: none; background: transparent; padding: 4px 4px; vertical-align: middle;">
                     <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="editarGastoPessoal(${gasto.id}, '${gasto.descricao}', ${gasto.valor})">✏️</button>
                     <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
                 </td>

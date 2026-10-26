@@ -68,11 +68,20 @@ window.fazerLogin = async function(){
         msgLogin.textContent="Senha incorreta.";
         console.log(error.message);
     } else {
+        // Salva quem logou para a próxima vez
+        localStorage.setItem('ultimoUsuario', emailEscolhido);
         iniciarApp(data.user);
     }
 };
 
-window.fazerLogout=async function(){await supabaseClient.auth.signOut();appPrincipal.style.display="none";telaLogin.style.display="block";loginSenha.value="";msgLogin.textContent="";};
+window.fazerLogout = async function(){
+    await supabaseClient.auth.signOut();
+    localStorage.removeItem('ultimoUsuario'); // Limpa a memória
+    appPrincipal.style.display="none";
+    telaLogin.style.display="block";
+    loginSenha.value="";
+    msgLogin.textContent="";
+};
 
 async function iniciarApp(user){
     usuarioLogado = user;
@@ -91,7 +100,20 @@ async function iniciarApp(user){
     // AQUI ESTÁ A MUDANÇA: Abre a aba pessoal primeiro
     mudarAba('pessoais');
 }
-supabaseClient.auth.getSession().then(({data:{session}})=>{if(session)iniciarApp(session.user); else telaLogin.style.display="block";});
+// Verifica se já existe uma sessão ativa (pessoa não fechou o app)
+supabaseClient.auth.getSession().then(({data:{session}})=>{
+    if(session) {
+        iniciarApp(session.user);
+    } else {
+        telaLogin.style.display="block";
+        
+        // Se não tem sessão, mas tem um "último usuário" salvo, ele já seleciona no dropdown
+        const ultimo = localStorage.getItem('ultimoUsuario');
+        if(ultimo) {
+            document.getElementById("loginUsuario").value = ultimo;
+        }
+    }
+});
 
 window.abrirAlterarSenha=function(){document.getElementById("popupSenha").classList.add("ativo")};
 window.salvarNovaSenha=async function(){const n=document.getElementById("novaSenha").value,msg=document.getElementById("msgSenha");if(n.length<6){msg.textContent="Min. 6 caracteres.";return}const{error}=await supabaseClient.auth.updateUser({password:n});if(error){msg.textContent="Erro."}else{msg.style.color="#188038";msg.textContent="Alterada!";setTimeout(()=>{fecharPopup('popupSenha');msg.style.color="#b3261e"},2000)}};
@@ -430,21 +452,11 @@ async function carregarGastosPessoais() {
     const lista = document.getElementById('listaGastosPessoais');
     const totalSpan = document.getElementById('totalGastosPessoais');
     
-    // Limpa a tela para não mostrar nada enquanto busca
     lista.innerHTML = ''; 
-
-    const hoje = new Date();
-    const mesAtual = hoje.getMonth();
-    const anoAtual = hoje.getFullYear();
-
-    const primeiroDia = new Date(anoAtual, mesAtual, 1).toISOString().split('T')[0];
-    const ultimoDia = new Date(anoAtual, mesAtual + 1, 0).toISOString().split('T')[0];
 
     const { data, error } = await supabaseClient
         .from('gastos_pessoais')
         .select('*')
-        .gte('data_gasto', primeiroDia)
-        .lte('data_gasto', ultimoDia)
         .order('data_gasto', { ascending: false });
 
     if (error) {
@@ -452,7 +464,6 @@ async function carregarGastosPessoais() {
         return;
     }
 
-    // Se não houver dados, simplesmente não faz nada (não escreve mensagem)
     if (data.length === 0) {
         totalSpan.textContent = 'R$ 0,00';
     } else {
@@ -462,17 +473,20 @@ async function carregarGastosPessoais() {
         data.forEach(gasto => {
             total += parseFloat(gasto.valor);
             
-              html += `
+            // Se o valor for 0, ele deixa o campo do valor em branco na tela
+            const valorExibicao = gasto.valor > 0 ? formatarReal(gasto.valor) : '';
+
+            html += `
             <tr style="background-color: #f3e8ff; border-left: 4px solid #8b5cf6; border-radius: 6px; box-shadow: 0 0 0 1px #8b5cf6;">
-                <td style="padding: 8px 4px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left;">
-                    <strong>${gasto.descricao}</strong>
+                <td style="padding: 2px 6px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left; font-size: 13px;">
+                    ${gasto.descricao}
                 </td>
-                <td class="col-valor" style="padding: 8px 4px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap;">
-                    ${formatarReal(gasto.valor)}
+                <td class="col-valor" style="padding: 2px 6px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap; font-size: 13px;">
+                    ${valorExibicao}
                 </td>
-                <td class="col-acoes" style="border: none; background: transparent; padding: 8px 4px;">
-                    <button class="btn-acao" style="color: #6b21a8;" onclick="editarGastoPessoal(${gasto.id}, '${gasto.descricao}', ${gasto.valor})">✏️</button>
-                    <button class="btn-acao" style="color: #6b21a8;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
+                <td class="col-acoes" style="border: none; background: transparent; padding: 2px 4px; vertical-align: middle;">
+                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="editarGastoPessoal(${gasto.id}, '${gasto.descricao}', ${gasto.valor})">✏️</button>
+                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
                 </td>
             </tr>`;
         });
@@ -486,16 +500,17 @@ async function carregarGastosPessoais() {
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
     const desc = document.getElementById("descGastoPessoal").value.trim();
-    const valor = parseFloat(document.getElementById("valGastoPessoal").value.replace(',', '.'));
+    const valorInput = document.getElementById("valGastoPessoal").value.trim();
     
-    // Pega a data de hoje no formato do banco (AAAA-MM-DD)
+    // Se o campo de valor estiver vazio, ele salva como 0
+    const valor = valorInput === "" ? 0 : parseFloat(valorInput.replace(',', '.'));
     const dataGasto = new Date().toISOString().split('T')[0]; 
     
     const msg = document.getElementById("msgGastoPessoal");
     const btn = e.target.querySelector('button[type="submit"]');
 
-    if (!desc || isNaN(valor)) {
-        msg.textContent = "Preencha todos os campos.";
+    if (!desc) {
+        msg.textContent = "Preencha a descrição.";
         return;
     }
 
@@ -505,15 +520,13 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
 
     try {
         if (idEditandoGastoPessoal) {
-            // Ao editar, mantemos a data original ou atualizamos para a de hoje? 
-            // Aqui estou mantendo a data original, alterando apenas desc e valor
             const { error } = await supabaseClient.from('gastos_pessoais')
                 .update({ descricao: desc, valor: valor })
                 .eq('id', idEditandoGastoPessoal);
             if (error) throw error;
             idEditandoGastoPessoal = null;
-            btn.textContent = "Adicionar Gasto";
-            mostrarPopupSucesso("Gasto atualizado!");
+            btn.textContent = "Adicionar";
+            mostrarPopupSucesso("Anotação atualizada!");
         } else {
             const { error } = await supabaseClient.from('gastos_pessoais')
                 .insert([{ 
@@ -523,7 +536,7 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
                     data_gasto: dataGasto 
                 }]);
             if (error) throw error;
-            mostrarPopupSucesso("Gasto lançado!");
+            mostrarPopupSucesso("Anotação salva!");
         }
 
         document.getElementById("formGastoPessoal").reset();
@@ -533,7 +546,7 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
         msg.textContent = "Erro: " + err.message;
     } finally {
         btn.disabled = false;
-        if (!idEditandoGastoPessoal) btn.textContent = "Adicionar Gasto";
+        if (!idEditandoGastoPessoal) btn.textContent = "Adicionar";
     }
 };
 

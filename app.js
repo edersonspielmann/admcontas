@@ -175,9 +175,18 @@ async function carregarContas(){
         allData.forEach(i=>{
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c=i.pago?'linha-paga':'linha-pendente';
+                        // Pega a etiqueta de quem pagou
+            let tagPago = '';
+            if (i.pago) {
+                tagPago = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
+            }
+
             h+=`<tr class="${c}">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})"></td>
-                <td><strong>${i.descricao}</strong><br><small style="color:inherit;opacity:0.8">Venc: ${v}</small></td>
+                <td>
+                    <strong>${i.descricao}</strong> ${tagPago}<br>
+                    <small style="color:inherit;opacity:0.8">Venc: ${v}</small>
+                </td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
                     <button class="btn-acao" onclick='editarConta(${JSON.stringify(i)})'>✏️</button>
@@ -297,8 +306,15 @@ window.cancelarEdicaoConta = function() {
     fecharPopup('popupLancamento');
 };
 
-window.togglePagoConta=async function(id,status){
-    await supabaseClient.from('lancamentos').update({pago:!status}).eq('id',id);
+window.togglePagoConta = async function(id, status){
+    // Se estiver desmarcando, limpa quem pagou. Se estiver marcando, salva o ID.
+    const pagador = !status ? usuarioLogado.id : null; 
+    
+    await supabaseClient.from('lancamentos').update({
+        pago: !status,
+        pago_por: pagador
+    }).eq('id', id);
+    
     carregarContas();
 };
 

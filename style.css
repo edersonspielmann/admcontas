@@ -159,3 +159,7 @@ body {
     background: linear-gradient(135deg, #f2f5f9 0%, #e0eaf5 100%);
     background-attachment: fixed;
 }
+.cat-tag {
+    color: #64748b; 
+    font-size: 11px;
+}

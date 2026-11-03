@@ -9,6 +9,12 @@ let idEditandoGastoPessoal = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const IMAGENS_MESES = ["mes1.jpg","mes2.jpg","mes3.jpg","mes4.jpg","mes5.jpg","mes6.jpg","mes7.jpg","mes8.jpg","mes9.jpg","mes10.jpg","mes11.jpg","mes12.jpg"];
+// Paleta de cores para as categorias
+const CORES_CATEGORIAS = {
+    "CARTÃO CARLOS": "#e11d48", // Vermelho escuro
+    "CARTÃO ROSANA": "#d946ef", // Rosa/Roxo
+    "CARTÃO LEOCIR": "#14b8a6"  // Turquesa/Verde água
+};
 
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
@@ -143,19 +149,26 @@ async function carregarContas(){
     // 1. Busca as contas do mês atual
     const{data:contasMes,error:err1}=await supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true});
     
-    // 2. NOVO: Busca as contas que ficaram para trás (NÃO pagas e com vencimento antes do dia 1º deste mês)
-    const{data:contasAtrasadas,error:err2}=await supabaseClient.from('lancamentos').select('*, categorias(nome)').lt('data_vencimento', d.primeiroDia).eq('pago', false);
+           // 2. Busca contas do mês anterior que NÃO foram pagas E que o vencimento já passou em relação a HOJE
+    const hojeStr = new Date().toISOString().split('T')[0]; // Pega a data de hoje (ex: 2026-11-03)
+    const dAnterior = obterMesAno(deslocamentoMes - 1);
+    
+    const{data:contasAtrasadas,error:err2}=await supabaseClient.from('lancamentos')
+        .select('*, categorias(nome)')
+        .gte('data_vencimento', dAnterior.primeiroDia)
+        .lte('data_vencimento', dAnterior.ultimoDia)
+        .eq('pago', false)
+        .lt('data_vencimento', hojeStr); // <-- A MÁGICA ESTÁ AQUI: Só traz se a data for menor que hoje
     
     // 3. Busca os moldes de contas fixas
     const{data:moldes,error:err3}=await supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').lt('data_vencimento',d.primeiroDia);
     
-    if(err1 || err2 || err3){listaContas.innerHTML='<div class="ultimos-aviso">Erro.</div>';return}
+    if(err1 || err2 || err3){listaContas.innerHTML='<div class="ultimos-aviso">Erro ao carregar.</div>';return}
 
     const novasCriadas = [];
     if(moldes){
         const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
         for(let molde of moldesUnicos) {
-            // Verifica se já existe uma conta fixa com esse nome no mês atual
             const jaExiste = (contasMes || []).find(m => m.descricao === molde.descricao && m.parcelas === 'Mensal');
             if(!jaExiste) {
                 const diaVenc = parseInt(molde.data_vencimento.split('-')[2]);
@@ -174,13 +187,9 @@ async function carregarContas(){
         }
     }
 
-    // Junta tudo: as atrasadas + as do mês atual + as fixas recém criadas
+    // Junta tudo
     let allData = [...(contasAtrasadas || []), ...(contasMes || []), ...novasCriadas];
-    
-    // Remove duplicatas caso haja
     allData = [...new Map(allData.map(item => [item.id, item])).values()];
-    
-    // Ordena pela data de vencimento
     allData.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     
     let tp=0, tpe=0;
@@ -189,38 +198,56 @@ async function carregarContas(){
     document.getElementById("totalPago").textContent=formatarReal(tp);
     document.getElementById("totalAPagar").textContent=formatarReal(tpe);
     
-    if(allData.length===0){listaContas.innerHTML='<div class="ultimos-aviso">Nenhuma conta neste mês.</div>'}
-    else{
+    if(allData.length===0){
+        listaContas.innerHTML='<div class="ultimos-aviso">Nenhuma conta neste mês.</div>';
+    } else {
         let h=`<table class="tabela-ultimos"><tbody>`;
+        
         allData.forEach(i=>{
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
-            const c=i.pago?'linha-paga':'linha-pendente';
+            const c = i.pago ? 'linha-paga' : 'linha-pendente';
             
-            // Lógica das Tags
+                        // Tags
             let tag = '';
             if (i.pago) {
-                // Exatamente o código original da sua tag verde
                 tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
             } else {
-                // Se não estiver paga, verificamos se a data de vencimento é menor que o dia 1º do mês visualizado
-                if (i.data_vencimento < d.primeiroDia) {
-                    // Tag vermelha idêntica à verde (mesmo padding, border-radius, etc)
+                // Se NÃO está paga, verifica se a data de vencimento já passou da data de HOJE
+                const dataVencObj = new Date(i.data_vencimento + 'T23:59:59');
+                const hojeObj = new Date();
+                
+                if (dataVencObj < hojeObj) {
                     tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">Vencida</span>`;
                 }
             }
 
-            h+=`<tr class="${c}">
-                <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})"></td>
+                       // Cores dos Cartões
+            const nomeCat = i.categorias?.nome;
+            const corCat = CORES_CATEGORIAS[nomeCat]; 
+            
+            // Fundo colorido suave apenas para cartões não pagos
+            const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}10 !important;"` : "";
+            
+            // Borda grossa (16px) apenas para cartões não pagos
+            const estiloBorda = (!i.pago && corCat) ? `border-left: 16px solid ${corCat} !important;` : "";
+
+            h+=`<tr class="${c}" ${estiloLinha}>
+                <td style="width:30px;text-align:center; ${estiloBorda}">
+                    <input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})">
+                </td>
                 <td>
                     <strong>${i.descricao}</strong> ${tag}<br>
-                    <small style="color:inherit;opacity:0.8">Venc: ${v}</small>
+                    <small style="color:inherit;opacity:0.7">
+                        Venc: ${v} 
+                        ${i.categorias ? ` • ${i.categorias.nome}` : ''}
+                    </small>
                 </td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
                     <button class="btn-acao" onclick='editarConta(${JSON.stringify(i)})'>✏️</button>
                     <button class="btn-acao" onclick='excluirGasto(${i.id}, "${i.grupo_parcelamento}", ${i.parcelas === 'Mensal'})'>🗑️</button>
                 </td>
-            </tr>`
+            </tr>`;
         });
         listaContas.innerHTML=h+`</tbody></table>`;
     }

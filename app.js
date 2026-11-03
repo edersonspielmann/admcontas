@@ -137,30 +137,50 @@ document.getElementById("popupCategorias").onclick=(e)=>{if(e.target.id==='popup
 
 async function carregarContas(){
     listaContas.innerHTML='<div class="ultimos-aviso">Carregando...</div>';
-    const d=obterMesAno(deslocamentoMes);document.getElementById("mesTitulo").textContent=d.stringMesAno;
+    const d=obterMesAno(deslocamentoMes);
+    document.getElementById("mesTitulo").textContent=d.stringMesAno;
     
+    // 1. Busca as contas do mês atual
     const{data:contasMes,error:err1}=await supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true});
-    const{data:moldes,error:err2}=await supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').lt('data_vencimento',d.primeiroDia);
     
-    if(err1 || err2){listaContas.innerHTML='<div class="ultimos-aviso">Erro.</div>';return}
+    // 2. NOVO: Busca as contas que ficaram para trás (NÃO pagas e com vencimento antes do dia 1º deste mês)
+    const{data:contasAtrasadas,error:err2}=await supabaseClient.from('lancamentos').select('*, categorias(nome)').lt('data_vencimento', d.primeiroDia).eq('pago', false);
+    
+    // 3. Busca os moldes de contas fixas
+    const{data:moldes,error:err3}=await supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').lt('data_vencimento',d.primeiroDia);
+    
+    if(err1 || err2 || err3){listaContas.innerHTML='<div class="ultimos-aviso">Erro.</div>';return}
 
     const novasCriadas = [];
     if(moldes){
         const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
         for(let molde of moldesUnicos) {
-            const jaExiste = contasMes.find(m => m.descricao === molde.descricao && m.parcelas === 'Mensal');
+            // Verifica se já existe uma conta fixa com esse nome no mês atual
+            const jaExiste = (contasMes || []).find(m => m.descricao === molde.descricao && m.parcelas === 'Mensal');
             if(!jaExiste) {
-                const diaVenc = molde.data_vencimento.split('-')[2];
-                const dataVenc = `${d.primeiroDia.split('-')[0]}-${d.primeiroDia.split('-')[1]}-${diaVenc}`;
-                const { data: nova } = await supabaseClient.from('lancamentos').insert([{
+                const diaVenc = parseInt(molde.data_vencimento.split('-')[2]);
+                const [anoMes, mesStr] = [d.primeiroDia.split('-')[0], d.primeiroDia.split('-')[1]];
+                const ultimoDiaMes = new Date(parseInt(anoMes), parseInt(mesStr), 0).getDate();
+                const diaFinal = Math.min(diaVenc, ultimoDiaMes);
+                const diaStr = String(diaFinal).padStart(2,'0');
+                const dataVenc = `${anoMes}-${mesStr}-${diaStr}`;
+                
+                const { data: nova, error: errNova } = await supabaseClient.from('lancamentos').insert([{
                     user_id:usuarioLogado.id, categoria_id: molde.categoria_id, descricao: molde.descricao, valor: molde.valor, data_vencimento: dataVenc, pago: false, parcelas: 'Mensal', grupo_parcelamento: crypto.randomUUID()
                 }]).select('*, categorias(nome)');
-                if(nova) novasCriadas.push(nova[0]);
+                if(errNova) console.error("Erro ao criar conta fixa:", errNova);
+                if(nova && nova.length) novasCriadas.push(nova[0]);
             }
         }
     }
 
-    let allData = [...contasMes, ...novasCriadas];
+    // Junta tudo: as atrasadas + as do mês atual + as fixas recém criadas
+    let allData = [...(contasAtrasadas || []), ...(contasMes || []), ...novasCriadas];
+    
+    // Remove duplicatas caso haja
+    allData = [...new Map(allData.map(item => [item.id, item])).values()];
+    
+    // Ordena pela data de vencimento
     allData.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
     
     let tp=0, tpe=0;
@@ -175,16 +195,24 @@ async function carregarContas(){
         allData.forEach(i=>{
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c=i.pago?'linha-paga':'linha-pendente';
-                        // Pega a etiqueta de quem pagou
-            let tagPago = '';
+            
+            // Lógica das Tags
+            let tag = '';
             if (i.pago) {
-                tagPago = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
+                // Exatamente o código original da sua tag verde
+                tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
+            } else {
+                // Se não estiver paga, verificamos se a data de vencimento é menor que o dia 1º do mês visualizado
+                if (i.data_vencimento < d.primeiroDia) {
+                    // Tag vermelha idêntica à verde (mesmo padding, border-radius, etc)
+                    tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">Vencida</span>`;
+                }
             }
 
             h+=`<tr class="${c}">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})"></td>
                 <td>
-                    <strong>${i.descricao}</strong> ${tagPago}<br>
+                    <strong>${i.descricao}</strong> ${tag}<br>
                     <small style="color:inherit;opacity:0.8">Venc: ${v}</small>
                 </td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
@@ -271,8 +299,12 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
             fecharPopup('popupLancamento');
         }
         carregarContas();
-    }catch(err){msgConta.textContent="Erro: "+err.message}
-    finally{enviando=false;btnSalvarConta.disabled=false;btnSalvarConta.textContent=editandoContaId ? "Salvar Alterações" : "Registrar Conta"}
+       }catch(err){msgConta.textContent="Erro: "+err.message}
+    finally{
+        enviando=false;
+        btnSalvarConta.disabled=false;
+        btnSalvarConta.textContent=editandoContaId ? "Salvar Alterações" : "Registrar Conta";
+    }
 };
 
 window.editarConta = function(item) {
@@ -320,13 +352,8 @@ window.togglePagoConta = async function(id, status){
 
 window.excluirGasto=async function(id,grupo, isFixo){
     if(!confirm("Tem certeza que deseja excluir?"))return;
-    if(isFixo){
-        const { data: item } = await supabaseClient.from('lancamentos').select('descricao').eq('id', id).single();
-        if (item) {
-            const nomeBase = item.descricao.replace(/\s\(Mensal\)$/, '');
-            await supabaseClient.from('lancamentos').delete().like('descricao', `${nomeBase}%`).eq('parcelas', 'Mensal');
-        }
-    } else if(grupo && grupo !== 'undefined' && grupo !== null){
+    if(grupo && grupo !== 'undefined' && grupo !== null){
+        // Exclui pelo grupo (funciona para fixas e parceladas)
         await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento',grupo);
     } else {
         await supabaseClient.from('lancamentos').delete().eq('id',id);
@@ -396,10 +423,13 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
     
     const btn = document.getElementById('btnSalvarMeta');
     btn.disabled = true; btn.textContent = "Salvando...";
+
+    // Guarda o id numa variável local antes de qualquer coisa
+    const idEdicao = editandoMetaId;
     
     try {
-        if (editandoMetaId) {
-            const { error } = await supabaseClient.from('metas').update({nome: nome,valor_total: valorTotal,imagem_url: imagem}).eq('id', editandoMetaId);
+        if (idEdicao) {
+            const { error } = await supabaseClient.from('metas').update({nome: nome,valor_total: valorTotal,imagem_url: imagem}).eq('id', idEdicao);
             if (error) throw error;
             mostrarPopupSucesso("Meta atualizada!");
         } else {
@@ -409,14 +439,13 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
         }
         editandoMetaId = null;
         document.getElementById("formMeta").reset();
-        document.getElementById('btnSalvarMeta').textContent = "Salvar Meta";
         fecharPopup('popupMeta');
         carregarMetas();
     } catch(err) {
         document.getElementById('msgMeta').textContent = "Erro: " + err.message;
     } finally {
         btn.disabled = false; 
-        btn.textContent = editandoMetaId ? "Salvar Alterações" : "Salvar Meta";
+        btn.textContent = idEdicao ? "Salvar Alterações" : "Salvar Meta";
     }
 };
 
@@ -471,9 +500,10 @@ async function carregarGastosPessoais() {
     lista.innerHTML = ''; 
 
     const { data, error } = await supabaseClient
-        .from('gastos_pessoais')
-        .select('*')
-        .order('data_gasto', { ascending: false });
+    .from('gastos_pessoais')
+    .select('*')
+    .eq('user_id', usuarioLogado.id)
+    .order('data_gasto', { ascending: false });
 
     if (error) {
         console.error("Erro no Supabase:", error);
@@ -501,7 +531,7 @@ async function carregarGastosPessoais() {
                     ${gasto.valor > 0 ? formatarReal(gasto.valor) : ''}
                 </td>
                 <td class="col-acoes" style="border: none; background: transparent; padding: 4px 4px; vertical-align: middle;">
-                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="editarGastoPessoal(${gasto.id}, '${gasto.descricao}', ${gasto.valor})">✏️</button>
+                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick='editarGastoPessoal(${gasto.id}, ${JSON.stringify(gasto.descricao)}, ${gasto.valor})'>✏️</button>
                     <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
                 </td>
             </tr>`;

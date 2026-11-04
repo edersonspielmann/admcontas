@@ -799,7 +799,7 @@ async function carregarCompras() {
             h += `<tr class="linha-pendente">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" onchange="marcarComprado(${item.id})"></td>
                 <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
-                    <img src="${img}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
+                    <img src="${img}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
                     <strong>${item.nome}</strong>
                 </td>
                 <td class="col-valor" style="color:#b3261e;">Qtd: ${item.quantidade}</td>
@@ -819,7 +819,7 @@ async function carregarCompras() {
             h += `<tr class="linha-paga">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" checked disabled></td>
                 <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
-                    <img src="${img}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
+                    <img src="${img}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
                     <strong>${item.nome}</strong>
                 </td>
                 <td class="col-valor" style="color:#188038;">Qtd: ${item.quantidade}</td>
@@ -901,10 +901,43 @@ document.getElementById("formCompra").onsubmit = async (e) => {
 // Mover para o estoque
 // Mover para o estoque
 window.marcarComprado = async function(id) {
-    // Atualiza o status para 'estoque' no banco de dados
-    await supabaseClient.from('compras').update({ status: 'estoque' }).eq('id', id);
+    // 1. Busca as informações do item que foi marcado como comprado
+    const { data: itemComprado, error: errBusca } = await supabaseClient
+        .from('compras')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (errBusca || !itemComprado) return;
+
+    // 2. Verifica se já existe um item com esse mesmo nome no estoque (IGNORANDO maiúsculas/minúsculas)
+    const { data: itemNoEstoque } = await supabaseClient
+        .from('compras')
+        .select('*')
+        .ilike('nome', itemComprado.nome) // <--- O 'ilike' resolve o problema!
+        .eq('status', 'estoque')
+        .maybeSingle();
+
+    if (itemNoEstoque) {
+        // Se já existe no estoque, SOMA a quantidade
+        const novaQtd = itemNoEstoque.quantidade + itemComprado.quantidade;
+        const novaImagem = itemComprado.imagem_url ? itemComprado.imagem_url : itemNoEstoque.imagem_url;
+
+        await supabaseClient.from('compras').update({ 
+            quantidade: novaQtd,
+            imagem_url: novaImagem,
+            nome: itemComprado.nome // Atualiza o nome para o jeito que foi digitado por último (ex: Arroz)
+        }).eq('id', itemNoEstoque.id);
+
+        // Apaga o item duplicado da lista
+        await supabaseClient.from('compras').delete().eq('id', id);
+
+    } else {
+        // Se NÃO existe no estoque, apenas muda o status
+        await supabaseClient.from('compras').update({ status: 'estoque' }).eq('id', id);
+    }
     
-    // Recarrega a tela para o item sair da lista vermelha e aparecer na lista verde
+    // 3. Atualiza a tela
     carregarCompras();
 };
 

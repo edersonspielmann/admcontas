@@ -217,11 +217,14 @@ async function carregarContas(){
     const d=obterMesAno(deslocamentoMes);
     document.getElementById("mesTitulo").textContent=d.stringMesAno;
     
-    // 1. OTIMIZAÇÃO: Faz as 3 buscas ao mesmo tempo (em paralelo) para ser mais rápido
+    const dAnterior = obterMesAno(deslocamentoMes - 1);
+
+    // OTIMIZAÇÃO: Faz as 3 buscas ao mesmo tempo (em paralelo)
     const [resMes, resAtrasadas, resMoldes] = await Promise.all([
         supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true}),
-        supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', obterMesAno(deslocamentoMes - 1).primeiroDia).lte('data_vencimento', obterMesAno(deslocamentoMes - 1).ultimoDia).eq('pago', false).lt('data_vencimento', new Date().toISOString().split('T')[0]),
-        supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').lt('data_vencimento',d.primeiroDia)
+        supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia).eq('pago', false).lt('data_vencimento', new Date().toISOString().split('T')[0]),
+        // AQUI ESTÁ A CORREÇÃO: Busca os moldes apenas do mês anterior
+        supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia)
     ]);
 
     const contasMes = resMes.data || [];
@@ -233,7 +236,7 @@ async function carregarContas(){
         return;
     }
 
-    // 2. OTIMIZAÇÃO: Cria as contas fixas do mês novo de uma vez só, em lote
+    // Cria as contas fixas do mês novo em lote
     const novasCriadas = [];
     if(moldes.length > 0){
         const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
@@ -477,16 +480,28 @@ window.confirmarExclusao = async function(){
     fecharPopup('popupExcluir'); 
     
     try {
-        if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
-            // Apaga todas as parcelas ou todos os meses fixos de uma vez
+        if (isFixoParaExcluir) {
+            // Se for conta fixa, apaga pela família (UUID)
+            if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
+                await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
+            } else {
+                // Fallback de segurança para contas muito antigas (sem UUID)
+                const { data: item } = await supabaseClient.from('lancamentos').select('descricao').eq('id', idParaExcluir).single();
+                if (item) {
+                    const nomeLimpo = item.descricao.replace(/\s\(\d+\/\d+\)$/, '').trim();
+                    await supabaseClient.from('lancamentos').delete().ilike('descricao', `${nomeLimpo}%`).eq('parcelas', 'Mensal');
+                }
+            }
+        } else if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
+            // Se for parcelada, apaga todas as parcelas do grupo
             await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
         } else {
-            // Apaga um lançamento único
+            // Se for um lançamento único (à vista), apaga só ele
             await supabaseClient.from('lancamentos').delete().eq('id', idParaExcluir);
         }
     } catch (e) {
         console.error(e);
-        alert("Erro ao excluir. Tente novamente.");
+        alert("Erro ao excluir no banco de dados. Tente novamente.");
     }
     
     carregarContas(); 

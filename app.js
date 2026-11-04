@@ -769,22 +769,25 @@ document.querySelectorAll('.popup-overlay').forEach(popup => {
 // ==========================================
 // LÓGICA DE COMPRAS E ESTOQUE
 // ==========================================
+
+// ==========================================
+// LÓGICA DE COMPRAS E ESTOQUE
+// ==========================================
 async function carregarCompras() {
     const listaComprar = document.getElementById('listaParaComprar');
     const listaEstoque = document.getElementById('listaEstoque');
     listaComprar.innerHTML = 'Carregando...';
     listaEstoque.innerHTML = 'Carregando...';
 
-    // Busca tudo do banco
     const { data, error } = await supabaseClient.from('compras').select('*');
     if (error) {
         listaComprar.innerHTML = 'Erro ao carregar.';
         return;
     }
 
-    // Separa o que é comprar e o que é estoque
+       // Garante que a separação está certinha
     const paraComprar = data.filter(item => item.status === 'comprar').sort((a,b) => a.nome.localeCompare(b.nome));
-    const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => a.nome.localeCompare(b.nome)); // Ordem Alfabética
+    const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => a.nome.localeCompare(b.nome));
 
     // Monta a lista de Comprar
     if (paraComprar.length === 0) {
@@ -792,9 +795,13 @@ async function carregarCompras() {
     } else {
         let h = `<table class="tabela-ultimos"><tbody>`;
         paraComprar.forEach(item => {
+            const img = item.imagem_url ? item.imagem_url : 'https://cdn-icons-png.flaticon.com/512/1169/1169628.png';
             h += `<tr class="linha-pendente">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" onchange="marcarComprado(${item.id})"></td>
-                <td><strong>${item.nome}</strong></td>
+                <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
+                    <img src="${img}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
+                    <strong>${item.nome}</strong>
+                </td>
                 <td class="col-valor" style="color:#b3261e;">Qtd: ${item.quantidade}</td>
                 <td class="col-acoes"><button class="btn-acao" onclick="excluirCompra(${item.id})">🗑️</button></td>
             </tr>`;
@@ -808,9 +815,13 @@ async function carregarCompras() {
     } else {
         let h = `<table class="tabela-ultimos"><tbody>`;
         emEstoque.forEach(item => {
+            const img = item.imagem_url ? item.imagem_url : 'https://cdn-icons-png.flaticon.com/512/1169/1169628.png';
             h += `<tr class="linha-paga">
                 <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" checked disabled></td>
-                <td><strong>${item.nome}</strong></td>
+                <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
+                    <img src="${img}" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
+                    <strong>${item.nome}</strong>
+                </td>
                 <td class="col-valor" style="color:#188038;">Qtd: ${item.quantidade}</td>
                 <td class="col-acoes">
                     <button class="btn-acao" style="color:#188038;" onclick="alterarEstoque(${item.id}, -1)">➖</button>
@@ -823,32 +834,77 @@ async function carregarCompras() {
     }
 }
 
-// Adicionar novo item
+// Adicionar novo item (com upload de imagem do celular)
 document.getElementById("formCompra").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById('nomeCompra').value.trim();
     const qtd = parseInt(document.getElementById('qtdCompra').value);
+    const fileInput = document.getElementById('imgCompra');
+    const file = fileInput.files[0]; // Pega a foto do celular
 
     if (!nome || qtd < 1) return;
 
-    const { error } = await supabaseClient.from('compras').insert([{
-        nome: nome,
-        quantidade: qtd,
-        status: 'comprar'
-    }]);
+    // Pega o botão corretamente para mudar o texto
+    const btn = e.target.querySelector('button[type="submit"]');
+    const textoOriginal = btn.textContent;
+    
+    btn.textContent = "Enviando...";
+    btn.disabled = true;
 
-    if (!error) {
+    let imagemUrl = null;
+
+    try {
+        // Se o usuário escolheu uma foto, faz o upload primeiro
+        if (file) {
+            // Cria um nome único para a imagem
+            const nomeArquivo = `${Date.now()}_${file.name.replace(/\s/g, '_')}`; 
+            
+            // Envia para o Supabase Storage (Bucket 'imagens')
+            const { data, error: uploadError } = await supabaseClient.storage
+                .from('imagens')
+                .upload(nomeArquivo, file);
+
+            if (uploadError) throw new Error("Erro ao subir imagem: " + uploadError.message);
+
+            // Pega o link público da imagem
+            const { data: publicUrlData } = supabaseClient.storage
+                .from('imagens')
+                .getPublicUrl(nomeArquivo);
+                
+            imagemUrl = publicUrlData.publicUrl;
+        }
+
+               // Salva no banco de dados
+        const { error } = await supabaseClient.from('compras').insert([{
+            nome: nome,
+            quantidade: qtd,
+            status: 'comprar', // <--- ISSO GARANTE QUE VAI PARA A LISTA DE COMPRAS
+            imagem_url: imagemUrl
+        }]);
+
+        if (error) throw error;
+
+        // Limpa o formulário
         document.getElementById('nomeCompra').value = '';
         document.getElementById('qtdCompra').value = '1';
+        fileInput.value = '';
         carregarCompras();
-    } else {
-        alert("Erro ao adicionar item.");
+
+    } catch (err) {
+        alert("Erro: " + err.message);
+    } finally {
+        btn.textContent = textoOriginal;
+        btn.disabled = false;
     }
 };
 
 // Mover para o estoque
+// Mover para o estoque
 window.marcarComprado = async function(id) {
+    // Atualiza o status para 'estoque' no banco de dados
     await supabaseClient.from('compras').update({ status: 'estoque' }).eq('id', id);
+    
+    // Recarrega a tela para o item sair da lista vermelha e aparecer na lista verde
     carregarCompras();
 };
 

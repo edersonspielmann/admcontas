@@ -40,8 +40,9 @@
     <main>
       <!-- ABAS -->
       <div class="abas-principais">
-        <button class="aba-btn ativa" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
-        <button class="aba-btn" id="btnAbaContas" onclick="mudarAba('contas')" title="Contas">💳</button>
+        <button class="aba-btn ativa" id="btnAbaContas" onclick="mudarAba('contas')" title="Contas">💳</button>
+        <button class="aba-btn" id="btnAbaCompras" onclick="mudarAba('compras')" title="Compras">🛒</button>
+        <button class="aba-btn" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
         <button class="aba-btn" id="btnAbaMetas" onclick="mudarAba('metas')" title="Metas">🎯</button>
       </div>
 
@@ -93,6 +94,40 @@
             </div>
           </div>
           <div id="listaContas"><div class="ultimos-aviso">Carregando...</div></div>
+        </div>
+      </div>
+
+      <!-- ABA COMPRAS E ESTOQUE -->
+      <div id="abaCompras" style="display:none">
+        
+        <!-- Formulário de Adicionar -->
+        <div class="card" style="margin-bottom: 15px;">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Adicionar à Lista</h2>
+          <form id="formCompra">
+            <div style="display:flex; gap:10px;">
+              <div style="flex: 3;">
+                <label>Item</label>
+                <input type="text" id="nomeCompra" required placeholder="Ex: Arroz">
+              </div>
+              <div style="flex: 1;">
+                <label>Qtd.</label>
+                <input type="number" id="qtdCompra" min="1" value="1" required>
+              </div>
+            </div>
+            <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar Item</button>
+          </form>
+        </div>
+
+        <!-- Lista de Compras -->
+        <div class="card" style="margin-bottom: 15px;">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #b3261e; text-align: left;">🛒 Para Comprar</h2>
+          <div id="listaParaComprar"></div>
+        </div>
+
+        <!-- Estoque -->
+        <div class="card">
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #188038; text-align: left;">📦 Estoque em Casa</h2>
+          <div id="listaEstoque"></div>
         </div>
       </div>
 
@@ -186,6 +221,18 @@
     </div>
   </div>
   <!-- ⬆️ FIM DO BLOCO NOVO ⬆️ -->
+
+  <!-- POPUP DE CONFIRMAÇÃO CUSTOMIZADO -->
+  <div id="popupConfirmacao" class="popup-overlay">
+    <div class="popup-caixa">
+      <div class="popup-icone" style="color: #b3261e;">⚠️</div>
+      <div class="popup-titulo" style="color: #b3261e;">Atenção</div>
+      <p id="textoConfirmacao" style="font-size: 14px; margin-bottom: 20px; color: #475569;">Tem certeza que deseja fazer isso?</p>
+      
+      <button onclick="fecharPopup('popupConfirmacao')" style="background:#e2e8f0; color:#475569; margin-bottom: 8px;">Cancelar</button>
+      <button id="btnConfirmarAcao" style="background:#b3261e;">Sim, tenho certeza</button>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

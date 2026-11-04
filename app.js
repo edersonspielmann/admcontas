@@ -256,7 +256,14 @@ async function carregarContas(){
 
     let allData = [...(contasAtrasadas || []), ...(contasMes || []), ...novasCriadas];
     allData = [...new Map(allData.map(item => [item.id, item])).values()];
-    allData.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
+   allData.sort((a, b) => {
+    // CORREÇÃO: Joga as contas pagas para o fim da lista
+    if (a.pago !== b.pago) {
+        return a.pago ? 1 : -1; 
+    }
+    // Se ambas têm o mesmo status (pagas ou pendentes), ordena pela data
+    return new Date(a.data_vencimento) - new Date(b.data_vencimento);
+});
     
     let tp=0, tpe=0;
     allData.forEach(i=>{if(i.pago){tp+=parseFloat(i.valor)}else{tpe+=parseFloat(i.valor)}});

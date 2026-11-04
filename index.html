@@ -176,6 +176,17 @@
   <div id="popupSucesso" class="popup-overlay"><div class="popup-caixa"><div class="popup-icone">✓</div><div class="popup-titulo" id="tituloPopup">Sucesso!</div><img src="https://c.tenor.com/aHS-s7YCPuIAAAAd/tenor.gif" alt="Porquinho"></div></div>
   <div id="popupSenha" class="popup-overlay"><div class="popup-caixa"><h2 style="color:#142b42;margin-top:0">Alterar Senha</h2><input type="password" id="novaSenha" placeholder="Nova senha" style="margin-bottom:10px"><button onclick="salvarNovaSenha()">Salvar</button><button style="background:#64748b" onclick="fecharPopup('popupSenha')">Cancelar</button><div id="msgSenha" class="msg-erro"></div></div></div>
 
+  <!-- ⬇️ COLE ESTE BLOCO NOVO AQUI ⬇️ -->
+  <div id="popupExcluir" class="popup-overlay">
+    <div class="popup-caixa" style="text-align: center; border-top: 4px solid #b3261e;">
+      <h2 style="color:#b3261e; margin-top:0; font-size: 18px;">Atenção!</h2>
+      <p id="txtExcluir" style="font-size: 14px; color: #475569; margin-bottom: 20px; line-height: 1.4;"></p>
+      <button style="background:#b3261e" onclick="confirmarExclusao()">Sim, Excluir</button>
+      <button style="background:#64748b" onclick="fecharPopup('popupExcluir')">Cancelar</button>
+    </div>
+  </div>
+  <!-- ⬆️ FIM DO BLOCO NOVO ⬆️ -->
+
   <script src="app.js"></script>
 </body>
 </html>

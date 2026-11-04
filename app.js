@@ -19,6 +19,42 @@ const CORES_CATEGORIAS = {
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
 
+// ==========================================
+// FUNÇÕES DE APOIO (CORREÇÕES)
+// ==========================================
+function gerarUUID(){
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+function parseMoeda(str){
+    if(!str) return NaN;
+    const limpo = String(str).trim().replace(/\./g,'').replace(',','.');
+    return parseFloat(limpo);
+}
+
+function isoLocal(d){
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function obterMesAno(d){
+    const h = new Date();
+    const a = new Date(h.getFullYear(), h.getMonth()+d, 1);
+    return {
+        stringMesAno: `${MESES[a.getMonth()]} ${a.getFullYear()}`,
+        primeiroDia: isoLocal(new Date(a.getFullYear(), a.getMonth(), 1)),
+        ultimoDia: isoLocal(new Date(a.getFullYear(), a.getMonth()+1, 0))
+    };
+}
+
+function formatarReal(v){
+    return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+}
+
 window.mudarAba = function(a) {
     document.getElementById('abaContas').style.display = 'none';
     document.getElementById('abaMetas').style.display = 'none';
@@ -54,18 +90,46 @@ window.alternarTipo = function() {
     }
 };
 
-function obterMesAno(d){const h=new Date(),a=new Date(h.getFullYear(),h.getMonth()+d,1);return{stringMesAno:`${MESES[a.getMonth()]} ${a.getFullYear()}`,primeiroDia:new Date(a.getFullYear(),a.getMonth(),1).toISOString().split('T')[0],ultimoDia:new Date(a.getFullYear(),a.getMonth()+1,0).toISOString().split('T')[0]}}
-function formatarReal(v){return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)}
 function atualizarPapelParedeMes(deslocamento){const hoje=new Date();let mesIndex=(hoje.getMonth()+deslocamento)%12;if(mesIndex<0)mesIndex+=12;const urlImagem=IMAGENS_MESES[mesIndex];document.querySelectorAll('.mes-nav').forEach(barra=>{barra.style.backgroundImage=`url('${urlImagem}')`;});}
-function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},2000)}
-function fecharPopup(id){document.getElementById(id).classList.remove("ativo")}
-window.abrirPopupLancamento=function(){document.getElementById("popupLancamento").classList.add("ativo")};
-window.abrirPopupMeta=function(){document.getElementById("popupMeta").classList.add("ativo")};
+function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},1000)}
+
+function fecharPopup(id){
+    document.getElementById(id).classList.remove("ativo");
+    if (id === 'popupLancamento' && editandoContaId) {
+        cancelarEdicaoConta();
+    }
+    if (id === 'popupMeta' && editandoMetaId) {
+        editandoMetaId = null;
+        document.getElementById('formMeta').reset();
+        document.getElementById('msgMeta').textContent = '';
+        document.getElementById('btnSalvarMeta').textContent = "Salvar Meta";
+    }
+}
+
+window.abrirPopupLancamento = function(){
+    if (!editandoContaId) {
+        document.getElementById("formLancamento").reset();
+        txtCatConta.textContent = "Selecione...";
+        document.getElementById("vencConta").value = new Date().toISOString().split('T')[0];
+        alternarTipo();
+    }
+    document.getElementById("popupLancamento").classList.add("ativo");
+};
+
+window.abrirPopupMeta = function(){
+    if (!editandoMetaId) {
+        document.getElementById("formMeta").reset();
+        document.getElementById('msgMeta').textContent = '';
+        document.getElementById('btnSalvarMeta').textContent = "Salvar Meta";
+    }
+    document.getElementById("popupMeta").classList.add("ativo");
+};
 
 window.fazerLogin = async function(){
     const emailEscolhido = document.getElementById("loginUsuario").value; 
     const s = loginSenha.value;
     
+    msgLogin.textContent = "";
     if(!s){ msgLogin.textContent="Digite a senha."; return; }
     
     let {data, error} = await supabaseClient.auth.signInWithPassword({email: emailEscolhido, password: s});
@@ -74,15 +138,18 @@ window.fazerLogin = async function(){
         msgLogin.textContent="Senha incorreta.";
         console.log(error.message);
     } else {
-        // Salva quem logou para a próxima vez
         localStorage.setItem('ultimoUsuario', emailEscolhido);
         iniciarApp(data.user);
     }
 };
 
 window.fazerLogout = async function(){
-    await supabaseClient.auth.signOut();
-    localStorage.removeItem('ultimoUsuario'); // Limpa a memória
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (e) {
+        console.log("Erro de rede ao sair, mas limpando a tela localmente.");
+    }
+    localStorage.removeItem('ultimoUsuario');
     appPrincipal.style.display="none";
     telaLogin.style.display="block";
     loginSenha.value="";
@@ -103,17 +170,14 @@ async function iniciarApp(user){
     const hoje=new Date().toISOString().split('T')[0];
     document.getElementById('vencConta').value=hoje;
     
-    // AQUI ESTÁ A MUDANÇA: Abre a aba pessoal primeiro
     mudarAba('pessoais');
 }
-// Verifica se já existe uma sessão ativa (pessoa não fechou o app)
+
 supabaseClient.auth.getSession().then(({data:{session}})=>{
     if(session) {
         iniciarApp(session.user);
     } else {
         telaLogin.style.display="block";
-        
-        // Se não tem sessão, mas tem um "último usuário" salvo, ele já seleciona no dropdown
         const ultimo = localStorage.getItem('ultimoUsuario');
         if(ultimo) {
             document.getElementById("loginUsuario").value = ultimo;
@@ -123,6 +187,7 @@ supabaseClient.auth.getSession().then(({data:{session}})=>{
 
 window.abrirAlterarSenha=function(){document.getElementById("popupSenha").classList.add("ativo")};
 window.salvarNovaSenha=async function(){const n=document.getElementById("novaSenha").value,msg=document.getElementById("msgSenha");if(n.length<6){msg.textContent="Min. 6 caracteres.";return}const{error}=await supabaseClient.auth.updateUser({password:n});if(error){msg.textContent="Erro."}else{msg.style.color="#188038";msg.textContent="Alterada!";setTimeout(()=>{fecharPopup('popupSenha');msg.style.color="#b3261e"},2000)}};
+
 async function carregarCategorias(){
     const{data,error}=await supabaseClient.from('categorias').select('*').order('id');
     if(error)return;
@@ -146,11 +211,9 @@ async function carregarContas(){
     const d=obterMesAno(deslocamentoMes);
     document.getElementById("mesTitulo").textContent=d.stringMesAno;
     
-    // 1. Busca as contas do mês atual
     const{data:contasMes,error:err1}=await supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true});
     
-           // 2. Busca contas do mês anterior que NÃO foram pagas E que o vencimento já passou em relação a HOJE
-    const hojeStr = new Date().toISOString().split('T')[0]; // Pega a data de hoje (ex: 2026-11-03)
+    const hojeStr = new Date().toISOString().split('T')[0];
     const dAnterior = obterMesAno(deslocamentoMes - 1);
     
     const{data:contasAtrasadas,error:err2}=await supabaseClient.from('lancamentos')
@@ -158,16 +221,17 @@ async function carregarContas(){
         .gte('data_vencimento', dAnterior.primeiroDia)
         .lte('data_vencimento', dAnterior.ultimoDia)
         .eq('pago', false)
-        .lt('data_vencimento', hojeStr); // <-- A MÁGICA ESTÁ AQUI: Só traz se a data for menor que hoje
+        .lt('data_vencimento', hojeStr);
     
-    // 3. Busca os moldes de contas fixas
     const{data:moldes,error:err3}=await supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').lt('data_vencimento',d.primeiroDia);
     
     if(err1 || err2 || err3){listaContas.innerHTML='<div class="ultimos-aviso">Erro ao carregar.</div>';return}
 
+    // CORREÇÃO: Inserção em lote (mais rápido)
     const novasCriadas = [];
     if(moldes){
         const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
+        const paraCriar = [];
         for(let molde of moldesUnicos) {
             const jaExiste = (contasMes || []).find(m => m.descricao === molde.descricao && m.parcelas === 'Mensal');
             if(!jaExiste) {
@@ -178,16 +242,18 @@ async function carregarContas(){
                 const diaStr = String(diaFinal).padStart(2,'0');
                 const dataVenc = `${anoMes}-${mesStr}-${diaStr}`;
                 
-                const { data: nova, error: errNova } = await supabaseClient.from('lancamentos').insert([{
-                    user_id:usuarioLogado.id, categoria_id: molde.categoria_id, descricao: molde.descricao, valor: molde.valor, data_vencimento: dataVenc, pago: false, parcelas: 'Mensal', grupo_parcelamento: crypto.randomUUID()
-                }]).select('*, categorias(nome)');
-                if(errNova) console.error("Erro ao criar conta fixa:", errNova);
-                if(nova && nova.length) novasCriadas.push(nova[0]);
+                paraCriar.push({
+                    user_id:usuarioLogado.id, categoria_id: molde.categoria_id, descricao: molde.descricao, valor: molde.valor, data_vencimento: dataVenc, pago: false, parcelas: 'Mensal', grupo_parcelamento: gerarUUID()
+                });
             }
+        }
+        if(paraCriar.length){
+            const { data: criadas, error: errNova } = await supabaseClient.from('lancamentos').insert(paraCriar).select('*, categorias(nome)');
+            if(errNova) console.error("Erro ao criar contas fixas:", errNova);
+            if(criadas && criadas.length) novasCriadas.push(...criadas);
         }
     }
 
-    // Junta tudo
     let allData = [...(contasAtrasadas || []), ...(contasMes || []), ...novasCriadas];
     allData = [...new Map(allData.map(item => [item.id, item])).values()];
     allData.sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento));
@@ -207,28 +273,20 @@ async function carregarContas(){
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c = i.pago ? 'linha-paga' : 'linha-pendente';
             
-                        // Tags
             let tag = '';
             if (i.pago) {
                 tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
             } else {
-                // Se NÃO está paga, verifica se a data de vencimento já passou da data de HOJE
                 const dataVencObj = new Date(i.data_vencimento + 'T23:59:59');
                 const hojeObj = new Date();
-                
                 if (dataVencObj < hojeObj) {
                     tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">Vencida</span>`;
                 }
             }
 
-                       // Cores dos Cartões
             const nomeCat = i.categorias?.nome;
             const corCat = CORES_CATEGORIAS[nomeCat]; 
-            
-            // Fundo colorido suave apenas para cartões não pagos
             const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}10 !important;"` : "";
-            
-            // Borda grossa (16px) apenas para cartões não pagos
             const estiloBorda = (!i.pago && corCat) ? `border-left: 16px solid ${corCat} !important;` : "";
 
             h+=`<tr class="${c}" ${estiloLinha}>
@@ -245,17 +303,20 @@ async function carregarContas(){
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
                     <button class="btn-acao" onclick='editarConta(${JSON.stringify(i)})'>✏️</button>
-                    <button class="btn-acao" onclick='excluirGasto(${i.id}, "${i.grupo_parcelamento}", ${i.parcelas === 'Mensal'})'>🗑️</button>
+                    <button class="btn-acao" onclick='excluirGasto(${i.id}, "${i.grupo_parcelamento}", ${i.parcelas === 'Mensal'}, "${i.descricao.replace(/"/g, '&quot;')}", "${i.data_vencimento}")'>🗑️</button>
                 </td>
             </tr>`;
         });
         listaContas.innerHTML=h+`</tbody></table>`;
     }
 }
+
 document.getElementById("formLancamento").onsubmit=async(e)=>{
     e.preventDefault();if(enviando)return;
     const tipo = document.getElementById('tipoConta').value;
-    const v=parseFloat(valConta.value.replace(',','.'));
+    
+    // CORREÇÃO: Usando parseMoeda
+    const v = parseMoeda(valConta.value);
     let q = parseInt(parcQtdConta.value) || 2;
     
     if(isNaN(v)||v<=0 || catConta.value==="" || !vencConta.value){msgConta.textContent="Preencha os dados.";return}
@@ -265,7 +326,7 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
         if(editandoContaId) {
             const { data: itemAtual } = await supabaseClient.from('lancamentos').select('*').eq('id', editandoContaId).single();
             const db=new Date(vencConta.value+'T12:00:00');
-            const grupoId = itemAtual.grupo_parcelamento || crypto.randomUUID();
+            const grupoId = itemAtual.grupo_parcelamento || gerarUUID();
 
             if (itemAtual.parcelas === 'Mensal' && tipo === 'parcela') {
                 await supabaseClient.from('lancamentos').delete().eq('id', editandoContaId);
@@ -288,7 +349,8 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
                     const { data: grupo } = await supabaseClient.from('lancamentos').select('id').eq('grupo_parcelamento', itemAtual.grupo_parcelamento).order('data_vencimento', {ascending: true});
                     for (let i = 0; i < grupo.length && i < q; i++) {
                         let dp = new Date(db); dp.setMonth(dp.getMonth() + i);
-                        await supabaseClient.from('lancamentos').update({categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i+1}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0]}).eq('id', grupo[i].id);
+                        // CORREÇÃO: Adicionado 'parcelas' no update
+                        await supabaseClient.from('lancamentos').update({categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i+1}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],parcelas:`${i+1}/${q}`}).eq('id', grupo[i].id);
                     }
                     if (q > grupo.length) {
                         const novos = [];
@@ -307,11 +369,11 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
             cancelarEdicaoConta();
         } else {
             if (tipo === 'fixo') {
-                const{error}=await supabaseClient.from('lancamentos').insert([{user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:descConta.value.trim(),valor:v,data_vencimento:vencConta.value,pago:pagoConta.checked,parcelas:'Mensal',grupo_parcelamento:crypto.randomUUID()}]);
+                const{error}=await supabaseClient.from('lancamentos').insert([{user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:descConta.value.trim(),valor:v,data_vencimento:vencConta.value,pago:pagoConta.checked,parcelas:'Mensal',grupo_parcelamento:gerarUUID()}]);
                 if(error)throw error;
                 mostrarPopupSucesso("Conta fixa registrada!");
             } else {
-                const db=new Date(vencConta.value+'T12:00:00'),novos=[],grupoId=crypto.randomUUID();
+                const db=new Date(vencConta.value+'T12:00:00'),novos=[],grupoId=gerarUUID();
                 for(let i=1;i<=q;i++){
                     const dp=new Date(db);dp.setMonth(dp.getMonth()+(i-1));
                     novos.push({user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],pago:(i===1)?pagoConta.checked:false,parcelas:`${i}/${q}`,grupo_parcelamento:grupoId});
@@ -366,25 +428,60 @@ window.cancelarEdicaoConta = function() {
 };
 
 window.togglePagoConta = async function(id, status){
-    // Se estiver desmarcando, limpa quem pagou. Se estiver marcando, salva o ID.
     const pagador = !status ? usuarioLogado.id : null; 
-    
     await supabaseClient.from('lancamentos').update({
         pago: !status,
         pago_por: pagador
     }).eq('id', id);
-    
     carregarContas();
 };
 
-window.excluirGasto=async function(id,grupo, isFixo){
-    if(!confirm("Tem certeza que deseja excluir?"))return;
-    if(grupo && grupo !== 'undefined' && grupo !== null){
-        // Exclui pelo grupo (funciona para fixas e parceladas)
-        await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento',grupo);
+// Variáveis para guardar o que vai ser excluído
+let idParaExcluir = null;
+let grupoParaExcluir = null;
+let isFixoParaExcluir = false;
+
+window.excluirGasto = function(id, grupo, isFixo){
+    idParaExcluir = id;
+    grupoParaExcluir = grupo;
+    isFixoParaExcluir = isFixo;
+    
+    const txt = document.getElementById('txtExcluir');
+    
+    if (isFixo) {
+        txt.innerHTML = "Você está prestes a excluir uma <strong>CONTA FIXA MENSAL</strong>.<br><br>Isso apagará este lançamento de <strong>TODOS OS MESES</strong> (passados e futuros).<br><br>Deseja continuar?";
+    } else if (grupo && grupo !== 'undefined' && grupo !== null) {
+        txt.innerHTML = "Você está prestes a excluir <strong>TODAS AS PARCELAS</strong> deste lançamento.<br><br>Deseja continuar?";
     } else {
-        await supabaseClient.from('lancamentos').delete().eq('id',id);
+        txt.innerHTML = "Tem certeza que deseja excluir este lançamento?";
     }
+    
+    document.getElementById('popupExcluir').classList.add('ativo');
+};
+
+window.confirmarExclusao = async function(){
+    fecharPopup('popupExcluir'); // Fecha a caixinha
+    
+    if (isFixoParaExcluir) {
+        // Pega o nome da conta direto do texto da tabela para apagar todos os meses
+        const btnLixeira = document.querySelector(`[onclick*="excluirGasto(${idParaExcluir},"]`);
+        const nomeConta = btnLixeira.closest('tr').querySelector('strong').innerText;
+        
+        const { error } = await supabaseClient.from('lancamentos')
+            .delete()
+            .eq('descricao', nomeConta)
+            .eq('user_id', usuarioLogado.id);
+            
+        if (error) {
+            console.error("Erro ao excluir:", error);
+            alert("Erro ao excluir. Tente novamente.");
+        }
+    } else if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
+        await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
+    } else {
+        await supabaseClient.from('lancamentos').delete().eq('id', idParaExcluir);
+    }
+    
     carregarContas();
 };
 
@@ -443,7 +540,8 @@ async function carregarMetas(){
 document.getElementById("formMeta").onsubmit=async(e)=>{
     e.preventDefault();
     const nome = document.getElementById('nomeMeta').value.trim();
-    const valorTotal = parseFloat(document.getElementById('valorMeta').value.replace(',','.'));
+    // CORREÇÃO: Usando parseMoeda
+    const valorTotal = parseMoeda(document.getElementById('valorMeta').value);
     const imagem = document.getElementById('imagemMeta').value.trim();
     
     if(!nome || isNaN(valorTotal) || valorTotal <= 0){document.getElementById('msgMeta').textContent="Preencha o nome e o valor corretamente.";return}
@@ -451,7 +549,6 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
     const btn = document.getElementById('btnSalvarMeta');
     btn.disabled = true; btn.textContent = "Salvando...";
 
-    // Guarda o id numa variável local antes de qualquer coisa
     const idEdicao = editandoMetaId;
     
     try {
@@ -501,7 +598,8 @@ window.abrirPopupGuardar = function(id, nome){
 }
 
 window.adicionarValorMeta = async function(){
-    const valorAdd = parseFloat(document.getElementById('valorGuardado').value.replace(',','.'));
+    // CORREÇÃO: Usando parseMoeda
+    const valorAdd = parseMoeda(document.getElementById('valorGuardado').value);
     if(isNaN(valorAdd) || valorAdd <= 0){document.getElementById('msgGuardar').textContent="Insira um valor válido.";return}
     
     const { data: meta, error: err1 } = await supabaseClient.from('metas').select('valor_guardado').eq('id', metaIdSelecionada).single();
@@ -517,6 +615,7 @@ window.adicionarValorMeta = async function(){
         document.getElementById('msgGuardar').textContent="Erro ao salvar.";
     }
 };
+
 // ==========================================
 // LÓGICA DE GASTOS PESSOAIS (INDIVIDUAIS)
 // ==========================================
@@ -537,7 +636,8 @@ async function carregarGastosPessoais() {
         return;
     }
 
-    if (data.length === 0) {
+    // CORREÇÃO: Verifica se data existe e se está vazio
+    if (!data || data.length === 0) {
         totalSpan.textContent = 'R$ 0,00';
     } else {
         let html = `<table class="tabela-ultimos"><tbody>`;
@@ -546,7 +646,6 @@ async function carregarGastosPessoais() {
         data.forEach(gasto => {
             total += parseFloat(gasto.valor);
             
-            // Se o valor for 0, ele deixa o campo do valor em branco na tela
             const valorExibicao = gasto.valor > 0 ? formatarReal(gasto.valor) : '';
 
             html += `
@@ -569,14 +668,13 @@ async function carregarGastosPessoais() {
     }
 }
 
-// Ajuste na função de Salvar para incluir a data de hoje automaticamente e retirar o input manual
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
     const desc = document.getElementById("descGastoPessoal").value.trim();
     const valorInput = document.getElementById("valGastoPessoal").value.trim();
     
-    // Se o campo de valor estiver vazio, ele salva como 0
-    const valor = valorInput === "" ? 0 : parseFloat(valorInput.replace(',', '.'));
+    // CORREÇÃO: Usando parseMoeda
+    const valor = valorInput === "" ? 0 : parseMoeda(valorInput);
     const dataGasto = new Date().toISOString().split('T')[0]; 
     
     const msg = document.getElementById("msgGastoPessoal");
@@ -623,7 +721,6 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     }
 };
 
-// Ajuste na função de Editar (removemos o parâmetro data que não é mais usado na interface)
 window.editarGastoPessoal = function(id, desc, valor) {
     idEditandoGastoPessoal = id;
     document.getElementById("descGastoPessoal").value = desc;
@@ -635,14 +732,12 @@ window.editarGastoPessoal = function(id, desc, valor) {
     document.getElementById("descGastoPessoal").focus();
 };
 
-// 5. Excluir Gasto Pessoal
 window.excluirGastoPessoal = async function(id) {
     if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
     const { error } = await supabaseClient.from('gastos_pessoais').delete().eq('id', id);
     if (!error) carregarGastosPessoais();
 };
 
-// 6. Fechar Popups ao clicar fora
 document.querySelectorAll('.popup-overlay').forEach(popup => {
     popup.addEventListener('click', function(e) {
         if (e.target === this) fecharPopup(this.id);

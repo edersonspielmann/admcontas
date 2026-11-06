@@ -68,8 +68,8 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 
 /* Tabela de Lançamentos */
 .tabela-ultimos{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:13px;color:#475569;margin-top:2px}
-.tabela-ultimos td{padding:6px 4px;vertical-align:middle;line-height:1.1}
-.tabela-ultimos td.col-valor{font-weight:bold;color:#263445;text-align:right;vertical-align:middle;font-size:13px}
+.tabela-ultimos td{padding:4px 6px;vertical-align:middle;line-height:1.2}
+.tabela-ultimos td.col-valor{font-weight:bold;color:#263445;text-align:right;vertical-align:middle;font-size:14px}
 .tabela-ultimos td.col-acoes{text-align:center;white-space:nowrap;vertical-align:middle}
 .tabela-ultimos td.col-acoes .btn-acao{margin:0 2px}
 
@@ -84,7 +84,8 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 .tabela-ultimos tr.linha-pendente td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
 .tabela-ultimos tr.linha-pendente{box-shadow: 0 0 0 1px #b3261e; border-radius: 6px;}
 
-.btn-acao{background:none;border:none;font-size:18px;cursor:pointer;width:auto;margin:0;padding:0;color:#b3261e;display:inline-block}
+.btn-acao{background:none;border:none;font-size:16px;cursor:pointer;width:auto;margin:0 4px;padding:0;color:#b3261e;display:inline-block}
+.tabela-ultimos td.col-acoes{text-align:center;white-space:nowrap;vertical-align:middle; width: 75px;}
 .tabela-ultimos tr.linha-paga .btn-acao{color:#188038}
 .check-pago{width:15px;height:15px;cursor:pointer;accent-color:#188038}
 .tabela-ultimos tr.linha-pendente .check-pago{accent-color:#b3261e}

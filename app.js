@@ -9,19 +9,16 @@ let idEditandoGastoPessoal = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const IMAGENS_MESES = ["mes1.jpg","mes2.jpg","mes3.jpg","mes4.jpg","mes5.jpg","mes6.jpg","mes7.jpg","mes8.jpg","mes9.jpg","mes10.jpg","mes11.jpg","mes12.jpg"];
-// Paleta de cores para as categorias
 const CORES_CATEGORIAS = {
-    "CARLOS": "#e11d48", // Vermelho escuro
-    "ROSANA": "#d946ef", // Rosa/Roxo
-    "LEOCIR": "#14b8a6"  // Turquesa/Verde água
+    "CARLOS": "#e11d48",
+    "ROSANA": "#d946ef",
+    "LEOCIR": "#14b8a6"
 };
 
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
 
-// ==========================================
-// FUNÇÕES DE APOIO (CORREÇÕES)
-// ==========================================
+// FUNÇÕES DE APOIO
 function gerarUUID(){
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -150,11 +147,7 @@ window.fazerLogin = async function(){
 };
 
 window.fazerLogout = async function(){
-    try {
-        await supabaseClient.auth.signOut();
-    } catch (e) {
-        console.log("Erro de rede ao sair, mas limpando a tela localmente.");
-    }
+    try { await supabaseClient.auth.signOut(); } catch (e) {}
     localStorage.removeItem('ultimoUsuario');
     appPrincipal.style.display="none";
     telaLogin.style.display="block";
@@ -185,9 +178,7 @@ supabaseClient.auth.getSession().then(({data:{session}})=>{
     } else {
         telaLogin.style.display="block";
         const ultimo = localStorage.getItem('ultimoUsuario');
-        if(ultimo) {
-            document.getElementById("loginUsuario").value = ultimo;
-        }
+        if(ultimo) document.getElementById("loginUsuario").value = ultimo;
     }
 });
 
@@ -198,6 +189,8 @@ async function carregarCategorias(){
     const{data,error}=await supabaseClient.from('categorias').select('*').order('id');
     if(error)return;
     catConta.innerHTML='<option value="">Selecione</option>';
+    document.getElementById("listaCategoriasPopup").innerHTML = ''; 
+    
     data.forEach(item=>{
         const l=document.createElement("div");l.className="cat-item";
         l.innerHTML=`<div class="cat-nome">${String(item.id).padStart(2,'0')} — ${item.nome}</div><div class="cat-desc">${item.descricao}</div>`;
@@ -211,19 +204,15 @@ async function carregarCategorias(){
 }
 document.getElementById("btnCatConta").onclick=()=>{document.getElementById("tituloPopupCat").innerText="Categoria da Conta";document.getElementById("popupCategorias").classList.add("ativo")};
 document.getElementById("popupCategorias").onclick=(e)=>{if(e.target.id==='popupCategorias')fecharPopup('popupCategorias')};
-
 async function carregarContas(){
     listaContas.innerHTML='<div class="ultimos-aviso">Carregando...</div>';
     const d=obterMesAno(deslocamentoMes);
     document.getElementById("mesTitulo").textContent=d.stringMesAno;
-    
     const dAnterior = obterMesAno(deslocamentoMes - 1);
 
-    // OTIMIZAÇÃO: Faz as 3 buscas ao mesmo tempo (em paralelo)
     const [resMes, resAtrasadas, resMoldes] = await Promise.all([
         supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true}),
         supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia).eq('pago', false).lt('data_vencimento', new Date().toISOString().split('T')[0]),
-        // AQUI ESTÁ A CORREÇÃO: Busca os moldes apenas do mês anterior
         supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia)
     ]);
 
@@ -236,7 +225,6 @@ async function carregarContas(){
         return;
     }
 
-    // Cria as contas fixas do mês novo em lote
     const novasCriadas = [];
     if(moldes.length > 0){
         const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
@@ -257,7 +245,6 @@ async function carregarContas(){
                 });
             }
         }
-        
         if(paraCriar.length > 0){
             const { data: criadas, error: errNova } = await supabaseClient.from('lancamentos').insert(paraCriar).select('*, categorias(nome)');
             if(!errNova && criadas) novasCriadas.push(...criadas);
@@ -287,10 +274,10 @@ async function carregarContas(){
             
             let tag = '';
             if (i.pago) {
-                tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">✓ Pago</span>`;
+             tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px;">✓ Pago</span>`;
             } else {
                 if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
-                    tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">Vencida</span>`;
+                  tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px; display:inline-block; vertical-align:middle;">Vencida</span>`;
                 }
             }
 
@@ -324,7 +311,6 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
     e.preventDefault();if(enviando)return;
     const tipo = document.getElementById('tipoConta').value;
     
-    // CORREÇÃO: Usando parseMoeda
     const v = parseMoeda(valConta.value);
     let q = parseInt(parcQtdConta.value) || 2;
     
@@ -358,7 +344,6 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
                     const { data: grupo } = await supabaseClient.from('lancamentos').select('id').eq('grupo_parcelamento', itemAtual.grupo_parcelamento).order('data_vencimento', {ascending: true});
                     for (let i = 0; i < grupo.length && i < q; i++) {
                         let dp = new Date(db); dp.setMonth(dp.getMonth() + i);
-                        // CORREÇÃO: Adicionado 'parcelas' no update
                         await supabaseClient.from('lancamentos').update({categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i+1}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],parcelas:`${i+1}/${q}`}).eq('id', grupo[i].id);
                     }
                     if (q > grupo.length) {
@@ -423,7 +408,7 @@ window.editarConta = function(item) {
     }
     alternarTipo();
     btnSalvarConta.textContent = "Salvar Alterações";
-    document.getElementById('btnCancelarEdicao').style.display = 'block'; // Mostra o botão de cancelar
+    document.getElementById('btnCancelarEdicao').style.display = 'block';
     abrirPopupLancamento();
 };
 
@@ -433,13 +418,12 @@ window.cancelarEdicaoConta = function() {
     txtCatConta.textContent = "Selecione...";
     document.getElementById("vencConta").value = new Date().toISOString().split('T')[0];
     btnSalvarConta.textContent = "Registrar Conta";
-    document.getElementById('btnCancelarEdicao').style.display = 'none'; // Esconde o botão de cancelar
+    document.getElementById('btnCancelarEdicao').style.display = 'none';
     alternarTipo();
     fecharPopup('popupLancamento');
 };
 
 window.togglePagoConta = async function(id, status){
-    // Atualiza o visual imediatamente antes de ir no banco (deixa o app mais rápido)
     const check = document.querySelector(`input[onchange*="togglePagoConta(${id},"]`);
     if(check) check.checked = !status;
 
@@ -450,10 +434,9 @@ window.togglePagoConta = async function(id, status){
         pago_por: pagador
     }).eq('id', id);
     
-    carregarContas(); // Atualiza os totais no final
+    carregarContas();
 };
 
-// Variáveis para guardar o que vai ser excluído
 let idParaExcluir = null;
 let grupoParaExcluir = null;
 let isFixoParaExcluir = false;
@@ -481,11 +464,9 @@ window.confirmarExclusao = async function(){
     
     try {
         if (isFixoParaExcluir) {
-            // Se for conta fixa, apaga pela família (UUID)
             if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
                 await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
             } else {
-                // Fallback de segurança para contas muito antigas (sem UUID)
                 const { data: item } = await supabaseClient.from('lancamentos').select('descricao').eq('id', idParaExcluir).single();
                 if (item) {
                     const nomeLimpo = item.descricao.replace(/\s\(\d+\/\d+\)$/, '').trim();
@@ -493,10 +474,8 @@ window.confirmarExclusao = async function(){
                 }
             }
         } else if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
-            // Se for parcelada, apaga todas as parcelas do grupo
             await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
         } else {
-            // Se for um lançamento único (à vista), apaga só ele
             await supabaseClient.from('lancamentos').delete().eq('id', idParaExcluir);
         }
     } catch (e) {
@@ -509,7 +488,9 @@ window.confirmarExclusao = async function(){
 
 document.getElementById("mesAnterior").onclick=()=>{deslocamentoMes--;carregarContas();atualizarPapelParedeMes(deslocamentoMes)};
 document.getElementById("mesProximo").onclick=()=>{deslocamentoMes++;carregarContas();atualizarPapelParedeMes(deslocamentoMes)};
-
+// ==========================================
+// METAS
+// ==========================================
 async function carregarMetas(){
     const listaMetas = document.getElementById('listaMetas');
     listaMetas.innerHTML='<div class="ultimos-aviso">Carregando metas...</div>';
@@ -562,7 +543,6 @@ async function carregarMetas(){
 document.getElementById("formMeta").onsubmit=async(e)=>{
     e.preventDefault();
     const nome = document.getElementById('nomeMeta').value.trim();
-    // CORREÇÃO: Usando parseMoeda
     const valorTotal = parseMoeda(document.getElementById('valorMeta').value);
     const imagem = document.getElementById('imagemMeta').value.trim();
     
@@ -570,7 +550,6 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
     
     const btn = document.getElementById('btnSalvarMeta');
     btn.disabled = true; btn.textContent = "Salvando...";
-
     const idEdicao = editandoMetaId;
     
     try {
@@ -620,7 +599,6 @@ window.abrirPopupGuardar = function(id, nome){
 }
 
 window.adicionarValorMeta = async function(){
-    // CORREÇÃO: Usando parseMoeda
     const valorAdd = parseMoeda(document.getElementById('valorGuardado').value);
     if(isNaN(valorAdd) || valorAdd <= 0){document.getElementById('msgGuardar').textContent="Insira um valor válido.";return}
     
@@ -639,7 +617,7 @@ window.adicionarValorMeta = async function(){
 };
 
 // ==========================================
-// LÓGICA DE GASTOS PESSOAIS (INDIVIDUAIS)
+// GASTOS PESSOAIS
 // ==========================================
 async function carregarGastosPessoais() {
     const lista = document.getElementById('listaGastosPessoais');
@@ -647,10 +625,10 @@ async function carregarGastosPessoais() {
     
     lista.innerHTML = ''; 
 
+    // Removido o filtro .eq('user_id') para ser compartilhado
     const { data, error } = await supabaseClient
     .from('gastos_pessoais')
     .select('*')
-    .eq('user_id', usuarioLogado.id)
     .order('data_gasto', { ascending: false });
 
     if (error) {
@@ -658,7 +636,6 @@ async function carregarGastosPessoais() {
         return;
     }
 
-    // CORREÇÃO: Verifica se data existe e se está vazio
     if (!data || data.length === 0) {
         totalSpan.textContent = 'R$ 0,00';
     } else {
@@ -668,8 +645,6 @@ async function carregarGastosPessoais() {
         data.forEach(gasto => {
             total += parseFloat(gasto.valor);
             
-            const valorExibicao = gasto.valor > 0 ? formatarReal(gasto.valor) : '';
-
             html += `
             <tr style="border-bottom: 1px solid #e2e8f0;">
                 <td style="padding: 4px 6px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left; font-size: 13px; border-left: 4px solid #8b5cf6;">
@@ -695,7 +670,6 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     const desc = document.getElementById("descGastoPessoal").value.trim();
     const valorInput = document.getElementById("valGastoPessoal").value.trim();
     
-    // CORREÇÃO: Usando parseMoeda
     const valor = valorInput === "" ? 0 : parseMoeda(valorInput);
     const dataGasto = new Date().toISOString().split('T')[0]; 
     
@@ -767,11 +741,7 @@ document.querySelectorAll('.popup-overlay').forEach(popup => {
 });
 
 // ==========================================
-// LÓGICA DE COMPRAS E ESTOQUE
-// ==========================================
-
-// ==========================================
-// LÓGICA DE COMPRAS E ESTOQUE
+// COMPRAS E ESTOQUE
 // ==========================================
 async function carregarCompras() {
     const listaComprar = document.getElementById('listaParaComprar');
@@ -785,11 +755,9 @@ async function carregarCompras() {
         return;
     }
 
-       // Garante que a separação está certinha
     const paraComprar = data.filter(item => item.status === 'comprar').sort((a,b) => a.nome.localeCompare(b.nome));
     const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => a.nome.localeCompare(b.nome));
 
-    // Monta a lista de Comprar
     if (paraComprar.length === 0) {
         listaComprar.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nada para comprar no momento.</div>';
     } else {
@@ -809,7 +777,6 @@ async function carregarCompras() {
         listaComprar.innerHTML = h + `</tbody></table>`;
     }
 
-    // Monta o Estoque
     if (emEstoque.length === 0) {
         listaEstoque.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Estoque vazio.</div>';
     } else {
@@ -834,17 +801,15 @@ async function carregarCompras() {
     }
 }
 
-// Adicionar novo item (com upload de imagem do celular)
 document.getElementById("formCompra").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById('nomeCompra').value.trim();
     const qtd = parseInt(document.getElementById('qtdCompra').value);
     const fileInput = document.getElementById('imgCompra');
-    const file = fileInput.files[0]; // Pega a foto do celular
+    const file = fileInput.files[0];
 
     if (!nome || qtd < 1) return;
 
-    // Pega o botão corretamente para mudar o texto
     const btn = e.target.querySelector('button[type="submit"]');
     const textoOriginal = btn.textContent;
     
@@ -854,37 +819,20 @@ document.getElementById("formCompra").onsubmit = async (e) => {
     let imagemUrl = null;
 
     try {
-        // Se o usuário escolheu uma foto, faz o upload primeiro
         if (file) {
-            // Cria um nome único para a imagem
             const nomeArquivo = `${Date.now()}_${file.name.replace(/\s/g, '_')}`; 
-            
-            // Envia para o Supabase Storage (Bucket 'imagens')
-            const { data, error: uploadError } = await supabaseClient.storage
-                .from('imagens')
-                .upload(nomeArquivo, file);
-
+            const { data, error: uploadError } = await supabaseClient.storage.from('imagens').upload(nomeArquivo, file);
             if (uploadError) throw new Error("Erro ao subir imagem: " + uploadError.message);
-
-            // Pega o link público da imagem
-            const { data: publicUrlData } = supabaseClient.storage
-                .from('imagens')
-                .getPublicUrl(nomeArquivo);
-                
+            const { data: publicUrlData } = supabaseClient.storage.from('imagens').getPublicUrl(nomeArquivo);
             imagemUrl = publicUrlData.publicUrl;
         }
 
-               // Salva no banco de dados
         const { error } = await supabaseClient.from('compras').insert([{
-            nome: nome,
-            quantidade: qtd,
-            status: 'comprar', // <--- ISSO GARANTE QUE VAI PARA A LISTA DE COMPRAS
-            imagem_url: imagemUrl
+            nome: nome, quantidade: qtd, status: 'comprar', imagem_url: imagemUrl
         }]);
 
         if (error) throw error;
 
-        // Limpa o formulário
         document.getElementById('nomeCompra').value = '';
         document.getElementById('qtdCompra').value = '1';
         fileInput.value = '';
@@ -898,50 +846,24 @@ document.getElementById("formCompra").onsubmit = async (e) => {
     }
 };
 
-// Mover para o estoque
-// Mover para o estoque
 window.marcarComprado = async function(id) {
-    // 1. Busca as informações do item que foi marcado como comprado
-    const { data: itemComprado, error: errBusca } = await supabaseClient
-        .from('compras')
-        .select('*')
-        .eq('id', id)
-        .single();
-
+    const { data: itemComprado, error: errBusca } = await supabaseClient.from('compras').select('*').eq('id', id).single();
     if (errBusca || !itemComprado) return;
 
-    // 2. Verifica se já existe um item com esse mesmo nome no estoque (IGNORANDO maiúsculas/minúsculas)
-    const { data: itemNoEstoque } = await supabaseClient
-        .from('compras')
-        .select('*')
-        .ilike('nome', itemComprado.nome) // <--- O 'ilike' resolve o problema!
-        .eq('status', 'estoque')
-        .maybeSingle();
+    const { data: itemNoEstoque } = await supabaseClient.from('compras').select('*').ilike('nome', itemComprado.nome).eq('status', 'estoque').maybeSingle();
 
     if (itemNoEstoque) {
-        // Se já existe no estoque, SOMA a quantidade
         const novaQtd = itemNoEstoque.quantidade + itemComprado.quantidade;
         const novaImagem = itemComprado.imagem_url ? itemComprado.imagem_url : itemNoEstoque.imagem_url;
-
-        await supabaseClient.from('compras').update({ 
-            quantidade: novaQtd,
-            imagem_url: novaImagem,
-            nome: itemComprado.nome // Atualiza o nome para o jeito que foi digitado por último (ex: Arroz)
-        }).eq('id', itemNoEstoque.id);
-
-        // Apaga o item duplicado da lista
+        await supabaseClient.from('compras').update({ quantidade: novaQtd, imagem_url: novaImagem, nome: itemComprado.nome }).eq('id', itemNoEstoque.id);
         await supabaseClient.from('compras').delete().eq('id', id);
-
     } else {
-        // Se NÃO existe no estoque, apenas muda o status
         await supabaseClient.from('compras').update({ status: 'estoque' }).eq('id', id);
     }
     
-    // 3. Atualiza a tela
     carregarCompras();
 };
 
-// Aumentar ou diminuir do estoque
 window.alterarEstoque = async function(id, mudanca) {
     const { data } = await supabaseClient.from('compras').select('quantidade').eq('id', id).single();
     if (!data) return;
@@ -959,7 +881,6 @@ window.alterarEstoque = async function(id, mudanca) {
     }
 };
 
-// Excluir item
 window.excluirCompra = async function(id) {
     mostrarConfirmacao("Tem certeza que deseja excluir este item?", async function() {
         await supabaseClient.from('compras').delete().eq('id', id);
@@ -967,20 +888,14 @@ window.excluirCompra = async function(id) {
     });
 };
 
-// Função de confirmação customizada (substitui o confirm feio do navegador)
 window.mostrarConfirmacao = function(mensagem, callback) {
     document.getElementById('textoConfirmacao').textContent = mensagem;
-    
     const btn = document.getElementById('btnConfirmarAcao');
-    // Remove o evento antigo do botão para não acumular
     const novoBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(novoBtn, btn);
-    
-    // Adiciona o novo evento
     novoBtn.onclick = function() {
         fecharPopup('popupConfirmacao');
-        callback(); // Executa a ação que você queria
+        callback();
     };
-
     document.getElementById('popupConfirmacao').classList.add('ativo');
 };

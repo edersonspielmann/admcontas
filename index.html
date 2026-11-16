@@ -23,7 +23,7 @@
 
     <label>Senha</label>
     <input type="password" id="loginSenha" placeholder="Digite sua senha">
-    <button onclick="fazerLogin()">Entrar</button>
+    <button id="btnLogin" onclick="fazerLogin()">Entrar</button>
     <div id="mensagemLogin" style="color:#b3261e;text-align:center;margin-top:10px;font-weight:bold"></div>
   </div>
 
@@ -42,6 +42,7 @@
         <button class="aba-btn" id="btnAbaCompras" onclick="mudarAba('compras')" title="Compras">🛒</button>
         <button class="aba-btn" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
         <button class="aba-btn" id="btnAbaMetas" onclick="mudarAba('metas')" title="Metas">🎯</button>
+		<button class="aba-btn" id="btnAbaNotas" onclick="mudarAba('notas')" title="Notas e Recibos">📄</button>
       </div>
 
       <!-- ABA GASTOS PESSOAIS -->
@@ -60,6 +61,9 @@
             </div>
             
             <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
+<button type="button" id="btnCancelarGastoPessoal"
+        style="display:none; background:#64748b; margin-top:8px;"
+        onclick="cancelarEdicaoGastoPessoal()">Cancelar Edição</button>
           </form>
           <div id="msgGastoPessoal" class="msg-erro"></div>
         </div>
@@ -94,6 +98,17 @@
           <div id="listaContas"><div class="ultimos-aviso">Carregando...</div></div>
         </div>
       </div>
+
+<!-- ABA NOTAS E RECIBOS -->
+<div id="abaNotas" style="display:none">
+  <div class="card" style="margin-bottom: 15px;">
+    <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">📄 Notas e Recibos</h2>
+    <div id="listaNotas" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px;">
+      <!-- cards gerados via JS -->
+    </div>
+  </div>
+  <button type="button" class="btn-flutuante" onclick="abrirPopupNota()">+</button>
+</div>
 
       <!-- ABA COMPRAS E ESTOQUE -->
       <div id="abaCompras" style="display:none">
@@ -176,6 +191,41 @@
       <div id="msgConta" class="msg-erro"></div>
     </div>
   </div>
+
+<!-- POPUP NOTA -->
+<div id="popupNota" class="popup-overlay" style="align-items: flex-end; padding: 0;">
+  <div class="popup-form">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h2 style="margin:0;">Nova Nota / Recibo</h2>
+      <button type="button" style="width:auto; margin:0; min-height:auto; background:none; color:#b3261e; font-size:20px;" onclick="fecharPopup('popupNota')">✕</button>
+    </div>
+    <form id="formNota">
+      <label>Descrição</label>
+      <input id="descNota" type="text" required placeholder="Ex: Nota fiscal Notebook, Recibo aluguel...">
+      
+      <label>Arquivo (Imagem ou PDF)</label>
+      <input id="arquivoNota" type="file" accept="image/*,application/pdf" required style="padding: 6px; background: #fff;">
+      
+      <button id="btnSalvarNota" type="submit" style="margin-top:20px;">Salvar</button>
+    </form>
+    <div id="msgNota" class="msg-erro"></div>
+  </div>
+</div>
+
+<!-- POPUP VISUALIZAR IMAGEM -->
+<!-- POPUP VISUALIZAR NOTA -->
+<div id="popupVisualizarNota" class="popup-overlay" style="background: rgba(0,0,0,0.9);">
+  <div style="position:relative; max-width:95vw; max-height:95vh; display: flex; flex-direction: column; align-items: center;">
+    <!-- Adicione isso dentro da div do popupVisualizarNota, junto com a img -->
+<iframe id="pdfVisualizarNota" src="" style="display:none; width:95vw; height:85vh; border:none; border-radius:8px;"></iframe>
+    <!-- Título adicionado aqui -->
+    <div id="tituloVisualizarNota" style="color: #fff; font-size: 16px; font-weight: bold; margin-bottom: 15px; text-align: center; width: 100%; padding: 0 40px; text-shadow: 1px 1px 3px rgba(0,0,0,0.8);"></div>
+    
+    <button onclick="fecharPopup('popupVisualizarNota')" style="position:absolute; top:-10px; right:0; background:none; border:none; color:#fff; font-size:28px; cursor:pointer; width:auto; min-height:auto; margin:0;">✕</button>
+    <img id="imgVisualizarNota" src="" style="max-width:95vw; max-height:85vh; border-radius:8px; display:block; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+  </div>
+</div>
+
 
   <!-- POPUP DE META -->
   <div id="popupMeta" class="popup-overlay" style="align-items: flex-end; padding: 0;">

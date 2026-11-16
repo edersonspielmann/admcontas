@@ -62,10 +62,17 @@ window.mudarAba = function(a) {
     document.getElementById('btnAbaMetas').classList.remove('ativa');
     document.getElementById('btnAbaPessoais').classList.remove('ativa');
     document.getElementById('btnAbaCompras').classList.remove('ativa');
+	
+	document.getElementById('abaNotas').style.display = 'none';
+document.getElementById('btnAbaNotas').classList.remove('ativa');
 
     if (a === 'contas') {
         document.getElementById('abaContas').style.display = 'block';
         document.getElementById('btnAbaContas').classList.add('ativa');
+	} else if (a === 'notas') {
+    document.getElementById('abaNotas').style.display = 'block';
+    document.getElementById('btnAbaNotas').classList.add('ativa');
+    carregarNotas();
     } else if (a === 'metas') {
         document.getElementById('abaMetas').style.display = 'block';
         document.getElementById('btnAbaMetas').classList.add('ativa');
@@ -131,18 +138,30 @@ window.abrirPopupMeta = function(){
 window.fazerLogin = async function(){
     const emailEscolhido = document.getElementById("loginUsuario").value; 
     const s = loginSenha.value;
+    const btn = document.querySelector('#telaLogin button');
     
     msgLogin.textContent = "";
     if(!s){ msgLogin.textContent="Digite a senha."; return; }
     
-    let {data, error} = await supabaseClient.auth.signInWithPassword({email: emailEscolhido, password: s});
+    // Feedback visual
+    btn.disabled = true;
+    const textoOriginal = btn.textContent;
+    btn.textContent = "Entrando...";
     
-    if(error){
-        msgLogin.textContent="Senha incorreta.";
-        console.log(error.message);
-    } else {
-        localStorage.setItem('ultimoUsuario', emailEscolhido);
-        iniciarApp(data.user);
+    try {
+        let {data, error} = await supabaseClient.auth.signInWithPassword({email: emailEscolhido, password: s});
+        
+        if(error){
+            msgLogin.textContent="Senha incorreta.";
+            console.log(error.message);
+        } else {
+            localStorage.setItem('ultimoUsuario', emailEscolhido);
+            iniciarApp(data.user);
+        }
+    } finally {
+        // Restaura o botão (se o login falhou; se deu certo, a tela já sumiu)
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
     }
 };
 
@@ -163,13 +182,19 @@ async function iniciarApp(user){
     const nome = user.email.split('@')[0]; 
     document.querySelector('header p').textContent = `Logado como: ${nome.charAt(0).toUpperCase() + nome.slice(1)}`;
 
-    carregarCategorias();
-    carregarContas();
+    // Renderiza a aba PRIMEIRO (com "Carregando...")
+    mudarAba('contas');
+
+    // Depois dispara as cargas em paralelo
     atualizarPapelParedeMes(0);
     const hoje=new Date().toISOString().split('T')[0];
     document.getElementById('vencConta').value=hoje;
-    
-    mudarAba('contas');
+
+    // await Promise.all para garantir que ambos rodem juntos (não em cascata)
+    await Promise.all([
+        carregarCategorias(),
+        carregarContas()
+    ]);
 }
 
 supabaseClient.auth.getSession().then(({data:{session}})=>{
@@ -227,26 +252,84 @@ async function carregarContas(){
 
     const novasCriadas = [];
     if(moldes.length > 0){
-        const moldesUnicos = [...new Map(moldes.map(item => [item.descricao, item])).values()];
+        // --- B2: deduplicar por grupo_parcelamento (não por descricao) ---
+        const moldesUnicos = [...new Map(
+            moldes
+                .filter(m => m.grupo_parcelamento) // só moldes válidos
+                .map(item => [item.grupo_parcelamento, item])
+        ).values()];
+
         const paraCriar = [];
-        
-        for(let molde of moldesUnicos) {
-            const jaExiste = contasMes.find(m => m.descricao === molde.descricao && m.parcelas === 'Mensal');
-            if(!jaExiste) {
-                const diaVenc = parseInt(molde.data_vencimento.split('-')[2]);
-                const [anoMes, mesStr] = [d.primeiroDia.split('-')[0], d.primeiroDia.split('-')[1]];
-                const ultimoDiaMes = new Date(parseInt(anoMes), parseInt(mesStr), 0).getDate();
+        const hoje = new Date();
+
+        // --- OTIMIZAÇÃO: 1 SELECT por grupo, não por mês ---
+        // Para cada molde, buscamos TODAS as datas já existentes daquele grupo
+        // de uma vez, e comparamos em memória.
+        const gruposMoldes = moldesUnicos.map(m => m.grupo_parcelamento);
+
+        let existentesPorGrupo = {};
+        if (gruposMoldes.length > 0) {
+            const { data: existentes } = await supabaseClient
+                .from('lancamentos')
+                .select('grupo_parcelamento, data_vencimento')
+                .in('grupo_parcelamento', gruposMoldes);
+
+            (existentes || []).forEach(e => {
+                if (!existentesPorGrupo[e.grupo_parcelamento]) {
+                    existentesPorGrupo[e.grupo_parcelamento] = new Set();
+                }
+                existentesPorGrupo[e.grupo_parcelamento].add(e.data_vencimento);
+            });
+        }
+
+        for (let molde of moldesUnicos) {
+            const jaExiste = contasMes.find(m =>
+                m.grupo_parcelamento === molde.grupo_parcelamento &&
+                m.parcelas === 'Mensal'
+            );
+            if (jaExiste) continue;
+
+            const diaVenc = parseInt(molde.data_vencimento.split('-')[2]);
+            const [anoMolde, mesMolde] = molde.data_vencimento.split('-').slice(0,2).map(Number);
+            const [anoAlvo, mesAlvo] = d.primeiroDia.split('-').slice(0,2).map(Number);
+
+            let cursorAno = anoMolde;
+            let cursorMes = mesMolde + 1;
+            if (cursorMes > 12) { cursorMes = 1; cursorAno++; }
+
+            const setExistente = existentesPorGrupo[molde.grupo_parcelamento] || new Set();
+
+            while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
+                if (cursorAno > hoje.getFullYear() ||
+                    (cursorAno === hoje.getFullYear() && cursorMes > hoje.getMonth() + 1)) break;
+
+                const ultimoDiaMes = new Date(cursorAno, cursorMes, 0).getDate();
                 const diaFinal = Math.min(diaVenc, ultimoDiaMes);
-                const diaStr = String(diaFinal).padStart(2,'0');
-                const dataVenc = `${anoMes}-${mesStr}-${diaStr}`;
-                
-                paraCriar.push({
-                    user_id:usuarioLogado.id, categoria_id: molde.categoria_id, descricao: molde.descricao, valor: molde.valor, data_vencimento: dataVenc, pago: false, parcelas: 'Mensal', grupo_parcelamento: molde.grupo_parcelamento
-                });
+                const dataVenc = `${cursorAno}-${String(cursorMes).padStart(2,'0')}-${String(diaFinal).padStart(2,'0')}`;
+
+                if (!setExistente.has(dataVenc)) {
+                    paraCriar.push({
+                        user_id: usuarioLogado.id,
+                        categoria_id: molde.categoria_id,
+                        descricao: molde.descricao,
+                        valor: molde.valor,
+                        data_vencimento: dataVenc,
+                        pago: false,
+                        parcelas: 'Mensal',
+                        grupo_parcelamento: molde.grupo_parcelamento
+                    });
+                }
+
+                cursorMes++;
+                if (cursorMes > 12) { cursorMes = 1; cursorAno++; }
             }
         }
+
         if(paraCriar.length > 0){
-            const { data: criadas, error: errNova } = await supabaseClient.from('lancamentos').insert(paraCriar).select('*, categorias(nome)');
+            const { data: criadas, error: errNova } = await supabaseClient
+                .from('lancamentos')
+                .insert(paraCriar)
+                .select('*, categorias(nome)');
             if(!errNova && criadas) novasCriadas.push(...criadas);
         }
     }
@@ -464,13 +547,24 @@ window.confirmarExclusao = async function(){
     
     try {
         if (isFixoParaExcluir) {
+            // Conta fixa: preferir SEMPRE grupo_parcelamento.
+            // Fallback: casar descrição EXATA (trim) + parcelas='Mensal'
+            // para não apagar "Água mineral" quando o item é "Água".
             if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
                 await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
             } else {
-                const { data: item } = await supabaseClient.from('lancamentos').select('descricao').eq('id', idParaExcluir).single();
+                const { data: item } = await supabaseClient
+                    .from('lancamentos')
+                    .select('descricao')
+                    .eq('id', idParaExcluir)
+                    .single();
                 if (item) {
                     const nomeLimpo = item.descricao.replace(/\s\(\d+\/\d+\)$/, '').trim();
-                    await supabaseClient.from('lancamentos').delete().ilike('descricao', `${nomeLimpo}%`).eq('parcelas', 'Mensal');
+                    // Exato (case-insensitive) — não usa % no final
+                    await supabaseClient.from('lancamentos')
+                        .delete()
+                        .ilike('descricao', nomeLimpo)
+                        .eq('parcelas', 'Mensal');
                 }
             }
         } else if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
@@ -665,6 +759,19 @@ async function carregarGastosPessoais() {
     }
 }
 
+// Cancela edição de gasto pessoal (novo — chamado pelo botão Cancelar e ao resetar)
+window.cancelarEdicaoGastoPessoal = function() {
+    idEditandoGastoPessoal = null;
+    document.getElementById("formGastoPessoal").reset();
+    document.getElementById("msgGastoPessoal").textContent = "";
+
+    const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
+    btn.textContent = "Adicionar";
+
+    const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
+    if (btnCancelar) btnCancelar.style.display = "none";
+};
+
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
     const desc = document.getElementById("descGastoPessoal").value.trim();
@@ -685,14 +792,14 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     btn.disabled = true;
     btn.textContent = "Salvando...";
 
+    const estavaEditando = !!idEditandoGastoPessoal;
+
     try {
-        if (idEditandoGastoPessoal) {
+        if (estavaEditando) {
             const { error } = await supabaseClient.from('gastos_pessoais')
                 .update({ descricao: desc, valor: valor })
                 .eq('id', idEditandoGastoPessoal);
             if (error) throw error;
-            idEditandoGastoPessoal = null;
-            btn.textContent = "Adicionar";
             mostrarPopupSucesso("Anotação atualizada!");
         } else {
             const { error } = await supabaseClient.from('gastos_pessoais')
@@ -706,14 +813,15 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
             mostrarPopupSucesso("Anotação salva!");
         }
 
-        document.getElementById("formGastoPessoal").reset();
+        // Reset SEMPRE — limpa o modo edição junto
+        cancelarEdicaoGastoPessoal();
         carregarGastosPessoais();
 
     } catch (err) {
         msg.textContent = "Erro: " + err.message;
-    } finally {
+        // Em caso de erro, NÃO perde o modo edição
         btn.disabled = false;
-        if (!idEditandoGastoPessoal) btn.textContent = "Adicionar";
+        btn.textContent = estavaEditando ? "Salvar Alterações" : "Adicionar";
     }
 };
 
@@ -724,7 +832,11 @@ window.editarGastoPessoal = function(id, desc, valor) {
     
     const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
     btn.textContent = "Salvar Alterações";
-    
+
+    // Mostra botão Cancelar
+    const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
+    if (btnCancelar) btnCancelar.style.display = "block";
+
     document.getElementById("descGastoPessoal").focus();
 };
 
@@ -898,4 +1010,183 @@ window.mostrarConfirmacao = function(mensagem, callback) {
         callback();
     };
     document.getElementById('popupConfirmacao').classList.add('ativo');
+};
+
+// ==========================================
+// NOTAS E RECIBOS
+// ==========================================
+window.abrirPopupNota = function() {
+    document.getElementById('formNota').reset();
+    document.getElementById('msgNota').textContent = '';
+    document.getElementById('popupNota').classList.add('ativo');
+};
+
+async function carregarNotas() {
+    const lista = document.getElementById('listaNotas');
+    lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Carregando...</div>';
+
+    const { data, error } = await supabaseClient
+        .from('notas')
+        .select('*')
+        .order('criado_em', { ascending: false });
+
+    if (error) {
+        lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Erro ao carregar.</div>';
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Nenhuma nota ou recibo salvo.</div>';
+        return;
+    }
+
+    // Gera todas as signed URLs em paralelo (mais rápido que em série)
+    const comUrls = await Promise.all(data.map(async (n) => {
+        const { data: signed, error: signErr } = await supabaseClient.storage
+            .from('notas')
+            .createSignedUrl(n.arquivo_url, 3600); // 1 hora
+        return { ...n, _urlExibir: signErr ? '' : signed.signedUrl };
+    }));
+
+    let h = '';
+    comUrls.forEach(n => {
+        const isPdf = n.tipo_arquivo === 'pdf';
+        
+        // A imagem/PDF agora tem altura fixa de 120px, deixando espaço para o título embaixo
+        const preview = isPdf
+            ? `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">📄</div>`
+            : `<img src="${n._urlExibir}" style="width:100%; height:120px; object-fit:cover;">`;
+
+        const descSegura = n.descricao.replace(/'/g, "\\'");
+
+        h += `
+        <div class="card-nota" style="position:relative; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1); cursor:pointer; display:flex; flex-direction:column;"
+             onclick="visualizarNota('${n.arquivo_url}', '${n.tipo_arquivo}', '${descSegura}')">
+            
+            <!-- Imagem/PDF -->
+            ${preview}
+            
+            <!-- Título fixo abaixo da imagem -->
+            <div style="padding:8px; font-size:12px; color:#142b42; font-weight:bold; text-align:center; line-height:1.2; word-break:break-word; background:#f8fafc; border-top:1px solid #e2e8f0; flex:1; display:flex; align-items:center; justify-content:center;">
+                ${n.descricao}
+            </div>
+
+            <!-- Botão Excluir -->
+            <button onclick="event.stopPropagation(); excluirNota(${n.id})"
+                    style="position:absolute; top:4px; right:4px; width:24px; height:24px; border-radius:50%; background:rgba(179,38,30,0.9); color:#fff; border:none; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; min-height:auto; padding:0; margin:0; z-index:10;">✕</button>
+        </div>`;
+    });
+    lista.innerHTML = h;
+}
+
+window.visualizarNota = async function(caminho, tipo, descricao = '') {
+    // Gera signed URL fresca no momento do clique (vale 1h)
+    const { data: signed, error } = await supabaseClient.storage
+        .from('notas')
+        .createSignedUrl(caminho, 3600);
+
+    if (error || !signed) {
+        alert("Não foi possível abrir o arquivo. Tente novamente.");
+        return;
+    }
+
+    const url = signed.signedUrl;
+    
+    // Captura os elementos
+    const imgElement = document.getElementById('imgVisualizarNota');
+    const iframeElement = document.getElementById('pdfVisualizarNota');
+    
+    // Define o título
+    document.getElementById('tituloVisualizarNota').textContent = descricao;
+
+    // Alterna entre imagem e PDF
+    if (tipo === 'pdf') {
+        imgElement.style.display = 'none';
+        imgElement.src = ''; // Limpa a imagem anterior
+        iframeElement.src = url;
+        iframeElement.style.display = 'block';
+    } else {
+        iframeElement.style.display = 'none';
+        iframeElement.src = ''; // Limpa o PDF anterior
+        imgElement.src = url;
+        imgElement.style.display = 'block';
+    }
+    
+    // Abre o modal
+    document.getElementById('popupVisualizarNota').classList.add('ativo');
+};
+
+window.excluirNota = async function(id) {
+    mostrarConfirmacao("Tem certeza que deseja excluir esta nota?", async function() {
+        const { data } = await supabaseClient.from('notas').select('arquivo_url').eq('id', id).single();
+        if (data?.arquivo_url) {
+            // arquivo_url agora é o caminho puro (ex: "1234_abc.pdf")
+            await supabaseClient.storage.from('notas').remove([data.arquivo_url]).catch(() => {});
+        }
+        await supabaseClient.from('notas').delete().eq('id', id);
+        carregarNotas();
+    });
+};
+
+document.getElementById("formNota").onsubmit = async (e) => {
+    e.preventDefault();
+    const desc = document.getElementById('descNota').value.trim();
+    const fileInput = document.getElementById('arquivoNota');
+    const file = fileInput.files[0];
+    const msg = document.getElementById('msgNota');
+    const btn = document.getElementById('btnSalvarNota');
+
+    if (!desc || !file) {
+        msg.textContent = "Preencha descrição e selecione um arquivo.";
+        return;
+    }
+
+    // Validação (do Bloco C original, aplicada aqui)
+    const tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!tiposPermitidos.includes(file.type)) {
+        msg.textContent = "Formato inválido. Use JPG, PNG, WEBP ou PDF.";
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        msg.textContent = "Arquivo muito grande (máx. 10MB).";
+        return;
+    }
+
+    msg.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    try {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const nomeArquivo = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+        const { error: upErr } = await supabaseClient.storage
+            .from('notas')
+            .upload(nomeArquivo, file, { contentType: file.type });
+
+        if (upErr) throw new Error("Erro no upload: " + upErr.message);
+
+        const tipo = file.type === 'application/pdf' ? 'pdf' : 'imagem';
+
+        // Bucket privado: salva só o CAMINHO, não a URL
+        const { error: dbErr } = await supabaseClient.from('notas').insert([{
+            user_id: usuarioLogado.id,
+            descricao: desc,
+            arquivo_url: nomeArquivo,   // apenas o caminho no bucket
+            tipo_arquivo: tipo
+        }]);
+
+        if (dbErr) throw dbErr;
+
+        document.getElementById('formNota').reset();
+        fecharPopup('popupNota');
+        carregarNotas();
+        mostrarPopupSucesso("Nota salva!");
+
+    } catch (err) {
+        msg.textContent = "Erro: " + err.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+    }
 };

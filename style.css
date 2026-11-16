@@ -164,3 +164,16 @@ body {
     color: #64748b; 
     font-size: 11px;
 }
+
+/* Estilo do Resumo por Categoria */
+.tag-resumo-cat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}

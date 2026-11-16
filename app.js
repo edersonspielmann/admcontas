@@ -347,6 +347,53 @@ async function carregarContas(){
     document.getElementById("totalPago").textContent=formatarReal(tp);
     document.getElementById("totalAPagar").textContent=formatarReal(tpe);
     
+    // ==========================================
+    // NOVO: CÁLCULO E RENDERIZAÇÃO DO RESUMO POR CATEGORIA
+    // ==========================================
+    const totaisPorCategoria = {};
+    
+    // Soma apenas o que NÃO está pago
+    allData.forEach(i => {
+        if (!i.pago) {
+            const nomeCat = i.categorias?.nome;
+            
+            // AQUI ESTÁ A MÁGICA: Só soma se a categoria for ROSANA, CARLOS ou LEOCIR
+            if (nomeCat && CORES_CATEGORIAS[nomeCat]) {
+                if (!totaisPorCategoria[nomeCat]) {
+                    totaisPorCategoria[nomeCat] = 0;
+                }
+                totaisPorCategoria[nomeCat] += parseFloat(i.valor);
+            }
+        }
+    });
+
+    const containerResumo = document.getElementById("resumoCategorias");
+    if (containerResumo) {
+        containerResumo.innerHTML = ''; // Limpa antes de adicionar
+        
+        // Se não houver contas a pagar dessas 3 pessoas, esconde o resumo
+        if (Object.keys(totaisPorCategoria).length === 0) {
+            containerResumo.style.display = 'none';
+        } else {
+            containerResumo.style.display = 'flex';
+            
+            // Para cada categoria que passou no filtro (Rosana, Carlos, Leocir)
+            for (const [nome, valor] of Object.entries(totaisPorCategoria)) {
+                const corCat = CORES_CATEGORIAS[nome];
+                
+                const tag = document.createElement('div');
+                tag.className = 'tag-resumo-cat';
+                tag.style.backgroundColor = corCat;
+                tag.innerHTML = `<span>${nome}:</span> <span>${formatarReal(valor)}</span>`;
+                
+                containerResumo.appendChild(tag);
+            }
+        }
+    }
+    // ==========================================
+    // FIM DO NOVO BLOCO
+    // ==========================================
+	
     if(allData.length===0){
         listaContas.innerHTML='<div class="ultimos-aviso">Nenhuma conta neste mês.</div>';
     } else {

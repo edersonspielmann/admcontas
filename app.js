@@ -91,12 +91,16 @@ document.getElementById('btnAbaNotas').classList.remove('ativa');
 window.alternarTipo = function() {
     const tipo = document.getElementById('tipoConta').value;
     const boxParcelas = document.getElementById('boxParcelas');
+    const labelValor = document.getElementById('labelValConta'); // Pega o texto do label
+
     if (tipo === 'fixo') {
         boxParcelas.style.display = 'none';
         document.getElementById('parcQtdConta').required = false;
+        labelValor.textContent = "Valor (R$)"; // Texto para conta fixa
     } else {
         boxParcelas.style.display = 'block';
         document.getElementById('parcQtdConta').required = true;
+        labelValor.textContent = "Valor da Parcela (R$)"; // Texto para parcelado/à vista
     }
 };
 
@@ -406,8 +410,9 @@ async function carregarContas(){
             if (i.pago) {
              tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px;">✓ Pago</span>`;
             } else {
-                if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
-                  tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px; display:inline-block; vertical-align:middle;">Vencida</span>`;
+                              if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
+                  // Tag fixa para contas atrasadas
+                  tag = `<span style="background:#b3261e; color:#fff; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:bold; margin-left:8px; display:inline-block; vertical-align:middle;">Parcela Vencida!</span>`;
                 }
             }
 

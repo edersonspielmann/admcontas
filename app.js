@@ -124,7 +124,7 @@ window.abrirPopupLancamento = function(){
     if (!editandoContaId) {
         document.getElementById("formLancamento").reset();
         txtCatConta.textContent = "Selecione...";
-        document.getElementById("vencConta").value = new Date().toISOString().split('T')[0];
+        document.getElementById("vencConta").value = isoLocal(new Date());
         alternarTipo();
     }
     document.getElementById("popupLancamento").classList.add("ativo");
@@ -191,7 +191,7 @@ async function iniciarApp(user){
 
     // Depois dispara as cargas em paralelo
     atualizarPapelParedeMes(0);
-    const hoje=new Date().toISOString().split('T')[0];
+    const hoje = isoLocal(new Date());
     document.getElementById('vencConta').value=hoje;
 
     // await Promise.all para garantir que ambos rodem juntos (não em cascata)
@@ -237,20 +237,33 @@ async function carregarContas(){
     listaContas.innerHTML='<div class="ultimos-aviso">Carregando...</div>';
     const d=obterMesAno(deslocamentoMes);
     document.getElementById("mesTitulo").textContent=d.stringMesAno;
+    
     const dAnterior = obterMesAno(deslocamentoMes - 1);
 
+    const hoje = new Date();
+	const ehPrimeiroDia = hoje.getDate() === 1;
+    // Só busca as contas do mês anterior se hoje for dia 1º
+    const buscaAtrasadas = ehPrimeiroDia 
+        ? supabaseClient
+            .from('lancamentos')
+            .select('*, categorias(nome)')
+            .gte('data_vencimento', dAnterior.primeiroDia)
+            .lte('data_vencimento', dAnterior.ultimoDia)
+            .eq('pago', false)
+        : Promise.resolve({ data: [], error: null });
+
     const [resMes, resAtrasadas, resMoldes] = await Promise.all([
-        supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento',d.primeiroDia).lte('data_vencimento',d.ultimoDia).order('data_vencimento',{ascending:true}),
-        supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia).eq('pago', false).lt('data_vencimento', new Date().toISOString().split('T')[0]),
-        supabaseClient.from('lancamentos').select('*').eq('parcelas','Mensal').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia)
+        supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', d.primeiroDia).lte('data_vencimento', d.ultimoDia).order('data_vencimento', { ascending: true }),
+        buscaAtrasadas,
+        supabaseClient.from('lancamentos').select('*').eq('parcelas', 'Mensal').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia)
     ]);
 
     const contasMes = resMes.data || [];
     const contasAtrasadas = resAtrasadas.data || [];
     const moldes = resMoldes.data || [];
-    
-    if(resMes.error || resAtrasadas.error || resMoldes.error){
-        listaContas.innerHTML='<div class="ultimos-aviso">Erro ao carregar.</div>';
+
+    if (resMes.error || resMoldes.error) {
+        listaContas.innerHTML = '<div class="ultimos-aviso">Erro ao carregar.</div>';
         return;
     }
 
@@ -264,11 +277,6 @@ async function carregarContas(){
         ).values()];
 
         const paraCriar = [];
-        const hoje = new Date();
-
-        // --- OTIMIZAÇÃO: 1 SELECT por grupo, não por mês ---
-        // Para cada molde, buscamos TODAS as datas já existentes daquele grupo
-        // de uma vez, e comparamos em memória.
         const gruposMoldes = moldesUnicos.map(m => m.grupo_parcelamento);
 
         let existentesPorGrupo = {};
@@ -303,9 +311,21 @@ async function carregarContas(){
 
             const setExistente = existentesPorGrupo[molde.grupo_parcelamento] || new Set();
 
-            while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
-                if (cursorAno > hoje.getFullYear() ||
-                    (cursorAno === hoje.getFullYear() && cursorMes > hoje.getMonth() + 1)) break;
+                       while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
+                // --- INÍCIO DA ALTERAÇÃO ---
+                const mesAtual = hoje.getMonth() + 1; // Mês atual em número (1 a 12)
+                const ultimoDiaDoMesAtual = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+                const ehUltimoDiaDoMes = hoje.getDate() === ultimoDiaDoMesAtual;
+
+                // Se o mês que queremos criar for MAIOR que o mês atual, 
+                // E hoje NÃO for o último dia do mês, então bloqueia a criação!
+                if (cursorAno > hoje.getFullYear() || 
+                   (cursorAno === hoje.getFullYear() && cursorMes > mesAtual)) {
+                    if (!ehUltimoDiaDoMes) {
+                        break;
+                    }
+                }
+                // --- FIM DA ALTERAÇÃO ---
 
                 const ultimoDiaMes = new Date(cursorAno, cursorMes, 0).getDate();
                 const diaFinal = Math.min(diaVenc, ultimoDiaMes);
@@ -412,13 +432,12 @@ async function carregarContas(){
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c = i.pago ? 'linha-paga' : 'linha-pendente';
             
-            let tag = '';
+                        let tag = '';
             if (i.pago) {
              tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px;">✓ Pago</span>`;
             } else {
-                              if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
-                  // Tag fixa para contas atrasadas
-                  tag = `<span style="background:#b3261e; color:#fff; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:bold; margin-left:8px; display:inline-block; vertical-align:middle;">Parcela Vencida!</span>`;
+                if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
+                  tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px; display:inline-block; vertical-align:middle;">Vencida</span>`;
                 }
             }
 
@@ -439,12 +458,18 @@ async function carregarContas(){
                 </td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
-                    <button class="btn-acao" onclick='editarConta(${JSON.stringify(i)})'>✏️</button>
+                    <button class="btn-acao btn-editar-item" data-id="${i.id}">✏️</button>
                     <button class="btn-acao" onclick='excluirGasto(${i.id}, "${i.grupo_parcelamento}", ${i.parcelas === 'Mensal'})'>🗑️</button>
                 </td>
             </tr>`;
         });
         listaContas.innerHTML=h+`</tbody></table>`;
+		listaContas.querySelectorAll('.btn-editar-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const item = allData.find(x => String(x.id) === btn.dataset.id);
+        if (item) editarConta(item);
+    });
+});
     }
 }
 
@@ -557,7 +582,7 @@ window.cancelarEdicaoConta = function() {
     editandoContaId = null;
     document.getElementById("formLancamento").reset();
     txtCatConta.textContent = "Selecione...";
-    document.getElementById("vencConta").value = new Date().toISOString().split('T')[0];
+   document.getElementById("vencConta").value = isoLocal(new Date());
     btnSalvarConta.textContent = "Registrar Conta";
     document.getElementById('btnCancelarEdicao').style.display = 'none';
     alternarTipo();

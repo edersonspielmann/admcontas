@@ -228,6 +228,19 @@
   </div>
 </div>
 
+  <!-- POPUP DETALHES DA CATEGORIA -->
+  <div id="popupDetalhesCategoria" class="popup-overlay">
+    <div class="popup-caixa" style="text-align: left; max-width: 400px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+        <h2 id="tituloDetalhesCategoria" style="margin:0; font-size: 18px; color: #142b42;">Detalhes</h2>
+        <button type="button" style="width:auto; margin:0; min-height:auto; background:none; color:#b3261e; font-size:20px;" onclick="fecharPopup('popupDetalhesCategoria')">✕</button>
+      </div>
+      
+      <div id="listaDetalhesCategoria" style="max-height: 60vh; overflow-y: auto; margin-bottom: 15px; padding-right: 5px;"></div>
+      
+      <div style="text-align: right; font-weight: bold; font-size: 16px; border-top: 1px solid #e2e8f0; padding-top: 10px;" id="totalDetalhesCategoria"></div>
+    </div>
+  </div>
 
   <!-- POPUP DE META -->
   <div id="popupMeta" class="popup-overlay" style="align-items: flex-end; padding: 0;">

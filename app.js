@@ -355,18 +355,21 @@ async function carregarContas(){
     // NOVO: CÁLCULO E RENDERIZAÇÃO DO RESUMO POR CATEGORIA
     // ==========================================
     const totaisPorCategoria = {};
+    const itensPorCategoria = {}; // NOVO: Guarda os itens para o popup
     
     // Soma apenas o que NÃO está pago
     allData.forEach(i => {
         if (!i.pago) {
             const nomeCat = i.categorias?.nome;
             
-            // AQUI ESTÁ A MÁGICA: Só soma se a categoria for ROSANA, CARLOS ou LEOCIR
+            // Só soma se a categoria for ROSANA, CARLOS ou LEOCIR
             if (nomeCat && CORES_CATEGORIAS[nomeCat]) {
                 if (!totaisPorCategoria[nomeCat]) {
                     totaisPorCategoria[nomeCat] = 0;
+                    itensPorCategoria[nomeCat] = []; // Inicia a lista
                 }
                 totaisPorCategoria[nomeCat] += parseFloat(i.valor);
+                itensPorCategoria[nomeCat].push(i); // Guarda o item na lista
             }
         }
     });
@@ -375,19 +378,22 @@ async function carregarContas(){
     if (containerResumo) {
         containerResumo.innerHTML = ''; // Limpa antes de adicionar
         
-        // Se não houver contas a pagar dessas 3 pessoas, esconde o resumo
         if (Object.keys(totaisPorCategoria).length === 0) {
             containerResumo.style.display = 'none';
         } else {
             containerResumo.style.display = 'flex';
             
-            // Para cada categoria que passou no filtro (Rosana, Carlos, Leocir)
             for (const [nome, valor] of Object.entries(totaisPorCategoria)) {
                 const corCat = CORES_CATEGORIAS[nome];
                 
                 const tag = document.createElement('div');
                 tag.className = 'tag-resumo-cat';
                 tag.style.backgroundColor = corCat;
+                tag.style.cursor = 'pointer'; // Muda o mouse para "mãozinha" ao passar por cima
+                
+                // Adiciona a ação de clique!
+                tag.onclick = () => abrirDetalhesCategoria(nome, itensPorCategoria[nome], valor, corCat);
+                
                 tag.innerHTML = `<span>${nome}:</span> <span>${formatarReal(valor)}</span>`;
                 
                 containerResumo.appendChild(tag);
@@ -1241,4 +1247,29 @@ document.getElementById("formNota").onsubmit = async (e) => {
         btn.disabled = false;
         btn.textContent = 'Salvar';
     }
+};
+
+// ==========================================
+// FUNÇÃO PARA ABRIR O POPUP DE DETALHES DA CATEGORIA
+// ==========================================
+window.abrirDetalhesCategoria = function(nome, itens, total, cor) {
+    document.getElementById('tituloDetalhesCategoria').textContent = `Detalhes: ${nome}`;
+    document.getElementById('tituloDetalhesCategoria').style.color = cor;
+    
+    let h = '<table style="width:100%; border-collapse: collapse; font-size: 13px;">';
+    itens.forEach(item => {
+        const dt = new Date(item.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR');
+        h += `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0;">${item.descricao}<br><small style="color:#64748b;">Venc: ${dt}</small></td>
+                <td style="padding: 8px 0; text-align: right; font-weight: bold;">${formatarReal(item.valor)}</td>
+            </tr>
+        `;
+    });
+    h += '</table>';
+    
+    document.getElementById('listaDetalhesCategoria').innerHTML = h;
+    document.getElementById('totalDetalhesCategoria').innerHTML = `Total: <span style="color: ${cor};">${formatarReal(total)}</span>`;
+    
+    document.getElementById('popupDetalhesCategoria').classList.add('ativo');
 };

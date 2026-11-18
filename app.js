@@ -690,15 +690,15 @@ async function carregarMetas(){
             <div class="card-meta">
                 ${m.imagem_url ? `<img src="${m.imagem_url}" alt="${m.nome}">` : ''}
                 
-                <div style="display:flex; justify-content:space-between; padding: 10px 15px 0 15px;">
-                    <div class="meta-titulo" style="margin:0;">${m.nome}</div>
-                    <div>
-                        <button class="btn-acao" onclick='editarMeta(${JSON.stringify(m)})' title="Editar">✏️</button>
-                        <button class="btn-acao" onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
-                    </div>
-                </div>
+                <div style="display:flex; justify-content:space-between; padding: 5px 5px 0 5px; align-items: center;">
+    <div class="meta-titulo" style="margin:0; flex:1;">${m.nome}</div>
+    <div style="display:flex; gap:2px;">
+        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='editarMeta(${JSON.stringify(m)})' title="Editar">✏️</button>
+        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
+    </div>
+</div>
 
-                <div class="meta-conteudo" style="padding-top: 5px;">
+                <div class="meta-conteudo" style="padding-top: 5px; padding: 5px;">
                     <div class="meta-valores">
                         <span>Guardado: <strong>${formatarReal(m.valor_guardado)}</strong></span>
                         <span>Falta: <strong>${formatarReal(falta > 0 ? falta : 0)}</strong></span>

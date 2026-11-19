@@ -9,12 +9,8 @@ let idEditandoGastoPessoal = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const IMAGENS_MESES = ["mes1.jpg","mes2.jpg","mes3.jpg","mes4.jpg","mes5.jpg","mes6.jpg","mes7.jpg","mes8.jpg","mes9.jpg","mes10.jpg","mes11.jpg","mes12.jpg"];
-const CORES_CATEGORIAS = {
-    "CARLOS": "#e11d48",
-    "ROSANA": "#d946ef",
-    "LEOCIR": "#14b8a6"
-};
-
+// COLOQUE ISSO:
+let CORES_CATEGORIAS = {}; 
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
 
@@ -217,21 +213,29 @@ window.salvarNovaSenha=async function(){const n=document.getElementById("novaSen
 async function carregarCategorias(){
     const{data,error}=await supabaseClient.from('categorias').select('*').order('id');
     if(error)return;
+    
+    // Limpa e reconstrói a lista de cores baseada no banco de dados!
+    CORES_CATEGORIAS = {}; 
+    data.forEach(item => {
+        if (item.cor) CORES_CATEGORIAS[item.nome] = item.cor;
+    });
+
     catConta.innerHTML='<option value="">Selecione</option>';
     document.getElementById("listaCategoriasPopup").innerHTML = ''; 
     
     data.forEach(item=>{
         const l=document.createElement("div");l.className="cat-item";
-        l.innerHTML=`<div class="cat-nome">${String(item.id).padStart(2,'0')} — ${item.nome}</div><div class="cat-desc">${item.descricao}</div>`;
+        l.innerHTML=`<div class="cat-nome">${item.nome}</div><div class="cat-desc">${item.descricao}</div>`;
         l.onclick=function(){
-            catConta.value=item.id;txtCatConta.textContent=`${String(item.id).padStart(2,'0')} — ${item.nome}`;
+            catConta.value=item.id;
+            txtCatConta.textContent = item.nome; 
             fecharPopup('popupCategorias');
         };
         document.getElementById("listaCategoriasPopup").appendChild(l);
         const o=document.createElement("option");o.value=item.id;o.text=item.nome;catConta.appendChild(o);
     });
 }
-document.getElementById("btnCatConta").onclick=()=>{document.getElementById("tituloPopupCat").innerText="Categoria da Conta";document.getElementById("popupCategorias").classList.add("ativo")};
+document.getElementById("btnCatConta").onclick=()=>{document.getElementById("popupCategorias").classList.add("ativo")};
 document.getElementById("popupCategorias").onclick=(e)=>{if(e.target.id==='popupCategorias')fecharPopup('popupCategorias')};
 async function carregarContas(){
     listaContas.innerHTML='<div class="ultimos-aviso">Carregando...</div>';
@@ -484,50 +488,141 @@ document.getElementById("formLancamento").onsubmit=async(e)=>{
     
     enviando=true;btnSalvarConta.disabled=true;btnSalvarConta.textContent="Salvando...";
     try{
-        if(editandoContaId) {
-            const { data: itemAtual } = await supabaseClient.from('lancamentos').select('*').eq('id', editandoContaId).single();
-            const db=new Date(vencConta.value+'T12:00:00');
-            const grupoId = itemAtual.grupo_parcelamento || gerarUUID();
+if(editandoContaId) {
+    const { data: itemAtual } = await supabaseClient.from('lancamentos')
+        .select('*').eq('id', editandoContaId).single();
+    
+    const grupoId = itemAtual.grupo_parcelamento || gerarUUID();
+    const descBase = descConta.value.trim();
 
-            if (itemAtual.parcelas === 'Mensal' && tipo === 'parcela') {
-                await supabaseClient.from('lancamentos').delete().eq('id', editandoContaId);
+    // ============================================================
+    // CASO 1: era fixo mensal (parcelas === 'Mensal')
+    // ============================================================
+    if (itemAtual.parcelas === 'Mensal') {
+
+        if (tipo === 'parcela') {
+            // Transformar mensal em parcelado: deleta o grupo inteiro e recria
+            await supabaseClient.from('lancamentos')
+                .delete().eq('grupo_parcelamento', grupoId);
+
+            const db = new Date(vencConta.value + 'T12:00:00');
+            const novos = [];
+            for (let i = 1; i <= q; i++) {
+                let dp = new Date(db);
+                dp.setMonth(dp.getMonth() + (i - 1));
+                novos.push({
+                    user_id: usuarioLogado.id,
+                    categoria_id: parseInt(catConta.value),
+                    descricao: `${descBase} (${i}/${q})`,
+                    valor: v,
+                    data_vencimento: dp.toISOString().split('T')[0],
+                    pago: (i === 1) ? pagoConta.checked : false,
+                    parcelas: `${i}/${q}`,
+                    grupo_parcelamento: grupoId
+                });
+            }
+            await supabaseClient.from('lancamentos').insert(novos);
+            mostrarPopupSucesso("Transformado em parcelado!");
+        } else {
+            // Continua fixo mensal: ATUALIZA TODOS DO GRUPO
+            // Mantém a data original de cada ocorrência (não recalcula)
+            await supabaseClient.from('lancamentos').update({
+                categoria_id: parseInt(catConta.value),
+                descricao: descBase,
+                valor: v
+            }).eq('grupo_parcelamento', grupoId);
+
+            // Atualiza só a data e o "pago" do item editado (o que o usuário está vendo)
+            await supabaseClient.from('lancamentos').update({
+                data_vencimento: vencConta.value,
+                pago: pagoConta.checked
+            }).eq('id', editandoContaId);
+
+            mostrarPopupSucesso("Conta fixa atualizada em todos os meses!");
+        }
+
+    // ============================================================
+    // CASO 2: era parcelado (1/N, 2/N...)
+    // ============================================================
+    } else {
+
+        if (tipo === 'fixo') {
+            // Transformar parcelado em fixo mensal
+            await supabaseClient.from('lancamentos')
+                .delete().eq('grupo_parcelamento', grupoId);
+
+            await supabaseClient.from('lancamentos').insert([{
+                user_id: usuarioLogado.id,
+                categoria_id: parseInt(catConta.value),
+                descricao: descBase,
+                valor: v,
+                data_vencimento: vencConta.value,
+                pago: pagoConta.checked,
+                parcelas: 'Mensal',
+                grupo_parcelamento: grupoId
+            }]);
+            mostrarPopupSucesso("Transformado em conta fixa!");
+        } else {
+            // Continua parcelado: preserva as datas originais de cada parcela
+            // NÃO recalcula data_vencimento de todas as parcelas
+            const { data: grupo } = await supabaseClient.from('lancamentos')
+                .select('id, data_vencimento')
+                .eq('grupo_parcelamento', grupoId)
+                .order('data_vencimento', { ascending: true });
+
+            for (let i = 0; i < grupo.length && i < q; i++) {
+                await supabaseClient.from('lancamentos').update({
+                    categoria_id: parseInt(catConta.value),
+                    descricao: `${descBase} (${i+1}/${q})`,
+                    valor: v,
+                    parcelas: `${i+1}/${q}`
+                    // ⚠️ data_vencimento NÃO é atualizado — preserva a original
+                }).eq('id', grupo[i].id);
+            }
+
+            // Se aumentou a quantidade de parcelas, cria as novas a partir da última
+            if (q > grupo.length) {
+                const ultimaData = grupo.length > 0
+                    ? new Date(grupo[grupo.length - 1].data_vencimento + 'T12:00:00')
+                    : new Date(vencConta.value + 'T12:00:00');
                 const novos = [];
-                for (let i = 1; i <= q; i++) {
-                    let dp = new Date(db); dp.setMonth(dp.getMonth() + (i - 1));
-                    novos.push({user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],pago:(i === 1) ? pagoConta.checked : false,parcelas:`${i}/${q}`,grupo_parcelamento:grupoId});
+                for (let i = grupo.length; i < q; i++) {
+                    const dp = new Date(ultimaData);
+                    dp.setMonth(dp.getMonth() + (i - grupo.length + 1));
+                    novos.push({
+                        user_id: usuarioLogado.id,
+                        categoria_id: parseInt(catConta.value),
+                        descricao: `${descBase} (${i+1}/${q})`,
+                        valor: v,
+                        data_vencimento: dp.toISOString().split('T')[0],
+                        pago: false,
+                        parcelas: `${i+1}/${q}`,
+                        grupo_parcelamento: grupoId
+                    });
                 }
                 await supabaseClient.from('lancamentos').insert(novos);
-                mostrarPopupSucesso("Transformado em parcelado!");
-            } else if (itemAtual.parcelas !== 'Mensal' && tipo === 'fixo') {
-                await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', itemAtual.grupo_parcelamento);
-                await supabaseClient.from('lancamentos').insert([{user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:descConta.value.trim(),valor:v,data_vencimento:vencConta.value,pago:pagoConta.checked,parcelas:'Mensal',grupo_parcelamento:grupoId}]);
-                mostrarPopupSucesso("Transformado em conta fixa!");
-            } else {
-                if (tipo === 'fixo') {
-                    await supabaseClient.from('lancamentos').update({categoria_id:parseInt(catConta.value),descricao:descConta.value.trim(),valor:v,data_vencimento:vencConta.value,pago:pagoConta.checked}).eq('id', editandoContaId);
-                    mostrarPopupSucesso("Conta fixa atualizada!");
-                } else {
-                    const { data: grupo } = await supabaseClient.from('lancamentos').select('id').eq('grupo_parcelamento', itemAtual.grupo_parcelamento).order('data_vencimento', {ascending: true});
-                    for (let i = 0; i < grupo.length && i < q; i++) {
-                        let dp = new Date(db); dp.setMonth(dp.getMonth() + i);
-                        await supabaseClient.from('lancamentos').update({categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i+1}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],parcelas:`${i+1}/${q}`}).eq('id', grupo[i].id);
-                    }
-                    if (q > grupo.length) {
-                        const novos = [];
-                        for (let i = grupo.length; i < q; i++) {
-                            let dp = new Date(db); dp.setMonth(dp.getMonth() + i);
-                            novos.push({user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:`${descConta.value.trim()} (${i+1}/${q})`,valor:v,data_vencimento:dp.toISOString().split('T')[0],pago:false,parcelas:`${i+1}/${q}`,grupo_parcelamento:itemAtual.grupo_parcelamento});
-                        }
-                        await supabaseClient.from('lancamentos').insert(novos);
-                    }
-                    if (q < grupo.length) {
-                        for (let i = q; i < grupo.length; i++) { await supabaseClient.from('lancamentos').delete().eq('id', grupo[i].id); }
-                    }
-                    mostrarPopupSucesso("Parcelas atualizadas!");
+            }
+
+            // Se diminuiu, apaga as excedentes
+            if (q < grupo.length) {
+                for (let i = q; i < grupo.length; i++) {
+                    await supabaseClient.from('lancamentos').delete().eq('id', grupo[i].id);
                 }
             }
-            cancelarEdicaoConta();
-        } else {
+
+            // Atualiza data e status de pagamento SOMENTE do item editado
+            await supabaseClient.from('lancamentos').update({
+                data_vencimento: vencConta.value,
+                pago: pagoConta.checked
+            }).eq('id', editandoContaId);
+
+            mostrarPopupSucesso("Parcelas atualizadas!");
+        }
+    }
+
+    cancelarEdicaoConta();
+}
+ else {
             if (tipo === 'fixo') {
                 const{error}=await supabaseClient.from('lancamentos').insert([{user_id:usuarioLogado.id,categoria_id:parseInt(catConta.value),descricao:descConta.value.trim(),valor:v,data_vencimento:vencConta.value,pago:pagoConta.checked,parcelas:'Mensal',grupo_parcelamento:gerarUUID()}]);
                 if(error)throw error;

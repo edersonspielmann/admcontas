@@ -434,19 +434,21 @@ if (i.pago) {
 
             const nomeCat = i.categorias?.nome;
             const corCat = CORES_CATEGORIAS[nomeCat]; 
-            const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}10 !important;"` : "";
-            const estiloBorda = (!i.pago && corCat) ? `border-left: 6px solid ${corCat} !important;` : "";
+   const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}15 !important;"` : "";
+          const estiloBorda = (!i.pago && corCat) ? `border-left: 12px solid ${corCat} !important;` : "";
 
-            h+=`<tr class="${c}" ${estiloLinha}>
-                <td style="width:30px;text-align:center; ${estiloBorda}">
-                    <input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})">
-                </td>
-                <td>
-    <strong>${i.descricao}</strong> ${tag}<br>
-    <small style="color:inherit;opacity:0.9; font-size:11px; display:inline-block; margin-top:2px;">
-        Venc: ${v} ${i.categorias ? ` • ${i.categorias.nome}` : ''}
-    </small>
+           h+=`<tr class="${c}" ${estiloLinha}>
+               <td style="width: 45px; padding: 0; vertical-align: middle;">
+    <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
+        <input type="checkbox" class="check-pago" style="background-color: ${i.pago ? '#188038' : (corCat ? corCat : '#b3261e')} !important;" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})">
+    </div>
 </td>
+                <td style="padding: 6px 4px; vertical-align: middle;">
+                   <strong style="color: ${corCat ? corCat : '#142b42'};">${i.descricao}</strong> ${tag}<br>
+                    <small style="color:inherit;opacity:0.9; font-size:11px; display:inline-block; margin-top:2px;">
+                        Venc: ${v} ${i.categorias ? ` • ${i.categorias.nome}` : ''}
+                    </small>
+                </td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
                     <button class="btn-acao btn-editar-item" data-id="${i.id}">✏️</button>

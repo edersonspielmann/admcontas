@@ -1,4 +1,19 @@
-*{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;min-height:100%}body{font-family:Arial,sans-serif;background:#f2f5f9;color:#263445}header{background:#142b42;color:#fff;padding:12px;text-align:center;position:relative}header h1{margin:0;font-size:20px}header p{margin:2px 0 0;font-family:"Poppins",Arial,sans-serif;font-size:12px;font-weight:600}main{width:100%;max-width:520px;margin:8px auto;padding:0 8px}.card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}.card+.card{margin-top:8px}h2{font-size:15px;margin:0 0 8px;text-align:center}
+*{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;min-height:100%}
+body {
+    font-family: Arial, sans-serif;
+    background: #f2f5f9; 
+    color: #263445;
+    /* Pode manter o antialiased, ele deixa a Arial mais nítida também */
+    -webkit-font-smoothing: antialiased; 
+}
+header{background:#142b42;color:#fff;padding:12px;text-align:center;position:relative}header h1{margin:0;font-size:20px}
+header p {
+    margin: 2px 0 0;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+}
+main{width:100%;max-width:520px;margin:8px auto;padding:0 8px}.card{background:#fff;border-radius:10px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}.card+.card{margin-top:8px}h2{font-size:15px;margin:0 0 8px;text-align:center}
 
 /* Ajustes dos Formulários */
 label{display:block;margin-top:6px;margin-bottom:2px;font-size:12px;font-weight:bold}
@@ -68,27 +83,69 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 .btn-adicionar-topo:hover { background: #146c2e; }
 
 /* Tabela de Lançamentos */
-.tabela-ultimos{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:13px;color:#475569;margin-top:2px}
-.tabela-ultimos td{padding:4px 6px;vertical-align:middle;line-height:1.2}
-.tabela-ultimos td.col-valor{font-weight:bold;color:#263445;text-align:right;vertical-align:middle;font-size:14px}
-.tabela-ultimos td.col-acoes{text-align:center;white-space:nowrap;vertical-align:middle}
+.tabela-ultimos{width:100%;border-collapse:separate;border-spacing:0 5px;font-size:13px;color:#475569;margin-top:2px}
+.tabela-ultimos td{padding:6px 6px;vertical-align:middle;line-height:1.15}
+
+/* Ajuste do título da conta (Descrição) */
+.tabela-ultimos td strong {
+    font-size: 13px;
+    font-weight: 600; /* Um pouco mais leve que o negrito padrão */
+    color: #142b42; /* Azul escuro elegante */
+    letter-spacing: -0.2px;
+}
+
+/* Ajuste da linha pequena de vencimento e categoria */
+.tabela-ultimos td small {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b; /* Cinza azulado moderno */
+}
+
+/* Valor e Ações */
+.tabela-ultimos td.col-valor {
+    font-weight: 700; /* Negrito mais forte */
+    color: #142b42;
+    text-align: right;
+    vertical-align: middle;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums; /* Faz todos os números terem a mesma largura, alinhando os centavos perfeitamente! */
+}
+.tabela-ultimos td.col-acoes{text-align:center;white-space:nowrap;vertical-align:middle;width:65px} /* Reduzido para dar mais espaço ao texto */
+
+/* Botões de Ação */
+.btn-acao{background:none;border:none;font-size:14px;cursor:pointer;width:auto;margin:0 2px;padding:0;color:#b3261e;display:inline-block;line-height:1}
 .tabela-ultimos td.col-acoes .btn-acao{margin:0 2px}
 
+/* Estilos Gerais dos Itens (Pago / Pendente) */
 .tabela-ultimos tr.linha-paga td{background-color:#e8f5e9;color:#188038;border:none}
 .tabela-ultimos tr.linha-paga td.col-valor{color:#188038}
-.tabela-ultimos tr.linha-paga td:first-child{border-left:4px solid #188038;border-top-left-radius:6px;border-bottom-left-radius:6px}
-.tabela-ultimos tr.linha-paga td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
-.tabela-ultimos tr.linha-paga{box-shadow: 0 0 0 1px #188038; border-radius: 6px;}
 
 .tabela-ultimos tr.linha-pendente td{background-color:#fdecea;color:#b3261e;border:none}
-.tabela-ultimos tr.linha-pendente td:first-child{border-left:4px solid #b3261e;border-top-left-radius:6px;border-bottom-left-radius:6px}
-.tabela-ultimos tr.linha-pendente td:last-child{border-top-right-radius:6px;border-bottom-right-radius:6px}
-.tabela-ultimos tr.linha-pendente{box-shadow: 0 0 0 1px #b3261e; border-radius: 6px;}
 
-.btn-acao{background:none;border:none;font-size:16px;cursor:pointer;width:auto;margin:0 4px;padding:0;color:#b3261e;display:inline-block}
-.tabela-ultimos td.col-acoes{text-align:center;white-space:nowrap;vertical-align:middle; width: 75px;}
+/* Arredondamento das pontas e sombra */
+.tabela-ultimos tr.linha-paga, 
+.tabela-ultimos tr.linha-pendente { 
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); /* Sombra mais suave */
+    border-radius: 6px; 
+}
+.tabela-ultimos tr.linha-paga td:first-child, 
+.tabela-ultimos tr.linha-pendente td:first-child {
+    border-top-left-radius:6px; 
+    border-bottom-left-radius:6px;
+    border-left: 5px solid; /* A tarja colorida fina */
+}
+.tabela-ultimos tr.linha-paga td:first-child { border-left-color: #188038; }
+.tabela-ultimos tr.linha-pendente td:first-child { border-left-color: #b3261e; }
+
+.tabela-ultimos tr.linha-paga td:last-child, 
+.tabela-ultimos tr.linha-pendente td:last-child {
+    border-top-right-radius:6px; 
+    border-bottom-right-radius:6px;
+}
+
+/* Checkbox e Cores dos Botões */
 .tabela-ultimos tr.linha-paga .btn-acao{color:#188038}
-.check-pago{width:15px;height:15px;cursor:pointer;accent-color:#188038}
+.check-pago{width:16px;height:16px;cursor:pointer;accent-color:#188038;margin:0}
 .tabela-ultimos tr.linha-pendente .check-pago{accent-color:#b3261e}
 
 /* Popups */
@@ -247,4 +304,23 @@ body {
     font-weight: bold;
     color: #fff;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+/* Ajuste fino para a fonte Arial */
+.tabela-ultimos td strong {
+    font-size: 13px;        
+    font-weight: bold;       /* A Arial pede o negrito padrão para dar destaque */
+    color: #1e293b;         
+}
+
+.tabela-ultimos td small {
+    font-size: 11.5px;      
+    font-weight: normal;       
+    color: #64748b;         
+}
+
+.tabela-ultimos td.col-valor {
+    font-weight: bold;       
+    color: #0f172a;         
+    font-size: 13.5px;      
+    font-variant-numeric: tabular-nums; /* Esse truque funciona maravilhosamente com a Arial */
 }

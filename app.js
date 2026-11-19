@@ -101,7 +101,7 @@ window.alternarTipo = function() {
 };
 
 function atualizarPapelParedeMes(deslocamento){const hoje=new Date();let mesIndex=(hoje.getMonth()+deslocamento)%12;if(mesIndex<0)mesIndex+=12;const urlImagem=IMAGENS_MESES[mesIndex];document.querySelectorAll('.mes-nav').forEach(barra=>{barra.style.backgroundImage=`url('${urlImagem}')`;});}
-function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},1000)}
+function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},400)}
 
 function fecharPopup(id){
     document.getElementById(id).classList.remove("ativo");
@@ -315,22 +315,9 @@ async function carregarContas(){
 
             const setExistente = existentesPorGrupo[molde.grupo_parcelamento] || new Set();
 
-                       while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
-                // --- INÍCIO DA ALTERAÇÃO ---
-                const mesAtual = hoje.getMonth() + 1; // Mês atual em número (1 a 12)
-                const ultimoDiaDoMesAtual = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
-                const ehUltimoDiaDoMes = hoje.getDate() === ultimoDiaDoMesAtual;
-
-                // Se o mês que queremos criar for MAIOR que o mês atual, 
-                // E hoje NÃO for o último dia do mês, então bloqueia a criação!
-                if (cursorAno > hoje.getFullYear() || 
-                   (cursorAno === hoje.getFullYear() && cursorMes > mesAtual)) {
-                    if (!ehUltimoDiaDoMes) {
-                        break;
-                    }
-                }
-                // --- FIM DA ALTERAÇÃO ---
-
+                    while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
+                // Bloqueio removido: agora cria os meses futuros sob demanda
+                
                 const ultimoDiaMes = new Date(cursorAno, cursorMes, 0).getDate();
                 const diaFinal = Math.min(diaVenc, ultimoDiaMes);
                 const dataVenc = `${cursorAno}-${String(cursorMes).padStart(2,'0')}-${String(diaFinal).padStart(2,'0')}`;
@@ -436,30 +423,30 @@ async function carregarContas(){
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c = i.pago ? 'linha-paga' : 'linha-pendente';
             
-                        let tag = '';
-            if (i.pago) {
-             tag = `<span style="background:#188038; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px;">✓ Pago</span>`;
-            } else {
-                if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
-                  tag = `<span style="background:#b3261e; color:#fff; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:8px; display:inline-block; vertical-align:middle;">Vencida</span>`;
-                }
-            }
+let tag = '';
+if (i.pago) {
+ tag = `<span style="background:#188038; color:#fff; padding:1px 4px; border-radius:4px; font-size:9px; margin-left:4px; font-weight:bold; font-family:'Poppins', sans-serif;">PAGO</span>`;
+} else {
+    if (new Date(i.data_vencimento + 'T23:59:59') < new Date()) {
+      tag = `<span style="background:#b3261e; color:#fff; padding:1px 4px; border-radius:4px; font-size:9px; margin-left:4px; font-weight:bold; font-family:'Poppins', sans-serif;">VENCIDA</span>`;
+    }
+}
 
             const nomeCat = i.categorias?.nome;
             const corCat = CORES_CATEGORIAS[nomeCat]; 
             const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}10 !important;"` : "";
-            const estiloBorda = (!i.pago && corCat) ? `border-left: 16px solid ${corCat} !important;` : "";
+            const estiloBorda = (!i.pago && corCat) ? `border-left: 6px solid ${corCat} !important;` : "";
 
             h+=`<tr class="${c}" ${estiloLinha}>
                 <td style="width:30px;text-align:center; ${estiloBorda}">
                     <input type="checkbox" class="check-pago" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})">
                 </td>
                 <td>
-                    <strong>${i.descricao}</strong> ${tag}<br>
-                    <small style="color:inherit;opacity:0.7">
-                        Venc: ${v} ${i.categorias ? ` • ${i.categorias.nome}` : ''}
-                    </small>
-                </td>
+    <strong>${i.descricao}</strong> ${tag}<br>
+    <small style="color:inherit;opacity:0.9; font-size:11px; display:inline-block; margin-top:2px;">
+        Venc: ${v} ${i.categorias ? ` • ${i.categorias.nome}` : ''}
+    </small>
+</td>
                 <td class="col-valor">${formatarReal(i.valor)}</td>
                 <td class="col-acoes">
                     <button class="btn-acao btn-editar-item" data-id="${i.id}">✏️</button>

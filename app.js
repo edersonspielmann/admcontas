@@ -772,7 +772,12 @@ async function carregarMetas(){
             
             h+=`
             <div class="card-meta">
-                ${m.imagem_url ? `<img src="${m.imagem_url}" alt="${m.nome}">` : ''}
+               ${m.imagem_url ? `
+    ${m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i) 
+        ? `<img src="${m.imagem_url}" alt="${m.nome}" style="cursor:pointer;" onclick="window.open('${m.imagem_url}', '_blank')">` 
+        : `<img src="https://s0.wp.com/mshots/v1/${encodeURIComponent(m.imagem_url)}?w=400" alt="${m.nome}" style="cursor:pointer; object-fit: cover;" onclick="window.open('${m.imagem_url}', '_blank')">`
+    }
+` : `<img src="https://cdn-icons-png.flaticon.com/512/1169/1169628.png" alt="${m.nome}" style="opacity: 0.5; padding: 20px;">`}
                 
                 <div style="display:flex; justify-content:space-between; padding: 5px 5px 0 5px; align-items: center;">
     <div class="meta-titulo" style="margin:0; flex:1;">${m.nome}</div>
@@ -886,7 +891,6 @@ async function carregarGastosPessoais() {
     
     lista.innerHTML = ''; 
 
-    // Removido o filtro .eq('user_id') para ser compartilhado
     const { data, error } = await supabaseClient
     .from('gastos_pessoais')
     .select('*')
@@ -899,30 +903,57 @@ async function carregarGastosPessoais() {
 
     if (!data || data.length === 0) {
         totalSpan.textContent = 'R$ 0,00';
+        lista.innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Nenhuma anotação ainda.</div>';
     } else {
-        let html = `<table class="tabela-ultimos"><tbody>`;
         let total = 0;
+        
+        lista.style.display = 'grid';
+        lista.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
+        lista.style.gap = '10px';
+        lista.style.marginTop = '10px';
 
-        data.forEach(gasto => {
+        const coresBloco = ['#fcd34d', '#fca5a5', '#93c5fd', '#86efac'];
+
+        let html = '';
+
+        data.forEach((gasto) => {
             total += parseFloat(gasto.valor);
             
+            // Cor fixa baseada no ID do banco
+            const cor = coresBloco[gasto.id % coresBloco.length];
+            
             html += `
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 4px 6px; color: #4c1d95; border: none; background: transparent; width: 100%; text-align: left; font-size: 13px; border-left: 4px solid #8b5cf6;">
+            <div class="bloco-anotacao" data-id="${gasto.id}" data-desc="${encodeURIComponent(gasto.descricao)}" data-valor="${gasto.valor}" style="background: ${cor}; padding: 10px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between; min-height: 100px; position: relative; border-top: 4px solid rgba(0,0,0,0.1);">
+                
+                <div style="font-size: 13px; font-weight: bold; color: #1e293b; line-height: 1.2; word-break: break-word;">
                     ${gasto.descricao}
-                </td>
-                <td class="col-valor" style="padding: 4px 6px; color: #6b21a8; border: none; background: transparent; font-weight: bold; text-align: right; white-space: nowrap; font-size: 13px;">
-                    ${gasto.valor > 0 ? formatarReal(gasto.valor) : ''}
-                </td>
-                <td class="col-acoes" style="border: none; background: transparent; padding: 4px 4px; vertical-align: middle;">
-                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick='editarGastoPessoal(${gasto.id}, ${JSON.stringify(gasto.descricao)}, ${gasto.valor})'>✏️</button>
-                    <button class="btn-acao" style="color: #6b21a8; font-size: 12px; padding: 0; margin: 0 2px; min-height: auto; line-height: 1;" onclick="excluirGastoPessoal(${gasto.id})">🗑️</button>
-                </td>
-            </tr>`;
+                </div>
+
+                ${gasto.valor > 0 ? `<div style="font-size: 14px; font-weight: 900; color: #1e293b; margin-top: 8px;">${formatarReal(gasto.valor)}</div>` : ''}
+                
+                <div style="display: flex; justify-content: flex-end; gap: 5px; margin-top: 10px;">
+                    <button class="btn-editar-bloco" style="background: transparent; border: none; color: #1e293b; font-size: 14px; cursor: pointer; padding: 0; min-height: auto; width: auto; margin: 0; opacity: 0.7;">✏️</button>
+                    <button class="btn-excluir-bloco" style="background: transparent; border: none; color: #1e293b; font-size: 14px; cursor: pointer; padding: 0; min-height: auto; width: auto; margin: 0; opacity: 0.7;">🗑️</button>
+                </div>
+            </div>`;
         });
 
-        lista.innerHTML = html + `</tbody></table>`;
+        lista.innerHTML = html;
         totalSpan.textContent = formatarReal(total);
+
+        // A MÁGICA DA SEGURANÇA: Adiciona os cliques de forma segura sem quebrar o HTML
+        lista.querySelectorAll('.bloco-anotacao').forEach(bloco => {
+            const id = bloco.getAttribute('data-id');
+            const desc = decodeURIComponent(bloco.getAttribute('data-desc'));
+            const valor = bloco.getAttribute('data-valor');
+
+            bloco.querySelector('.btn-editar-bloco').addEventListener('click', () => {
+                editarGastoPessoal(id, desc, valor);
+            });
+            bloco.querySelector('.btn-excluir-bloco').addEventListener('click', () => {
+                excluirGastoPessoal(id);
+            });
+        });
     }
 }
 
@@ -969,6 +1000,9 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
             if (error) throw error;
             mostrarPopupSucesso("Anotação atualizada!");
         } else {
+            // NOVO: Limpamos o ID antes de inserir para garantir que não vai dar conflito
+            idEditandoGastoPessoal = null; 
+            
             const { error } = await supabaseClient.from('gastos_pessoais')
                 .insert([{ 
                     user_id: usuarioLogado.id, 
@@ -980,13 +1014,14 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
             mostrarPopupSucesso("Anotação salva!");
         }
 
-        // Reset SEMPRE — limpa o modo edição junto
+        // Limpa o formulário e restaura o botão ANTES de buscar os dados
         cancelarEdicaoGastoPessoal();
+        
+        // Só agora recarrega a tela com os dados novos
         carregarGastosPessoais();
 
     } catch (err) {
         msg.textContent = "Erro: " + err.message;
-        // Em caso de erro, NÃO perde o modo edição
         btn.disabled = false;
         btn.textContent = estavaEditando ? "Salvar Alterações" : "Adicionar";
     }

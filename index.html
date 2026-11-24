@@ -119,18 +119,15 @@
           <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Adicionar à Lista</h2>
           <form id="formCompra">
             <div style="display:flex; gap:10px;">
+              <div style="flex: 1;">
+                <label>Qtd. / Medida</label>
+                <input type="text" id="qtdCompra" value="1" placeholder="Ex: 1 un, 1 kg, 2 pacotes..." style="text-align:center;">
+              </div>
               <div style="flex: 3;">
                 <label>Item</label>
-                <input type="text" id="nomeCompra" required placeholder="Ex: Arroz">
-              </div>
-              <div style="flex: 1;">
-                <label>Qtd.</label>
-                <input type="number" id="qtdCompra" min="1" value="1" required>
+                <input type="text" id="nomeCompra" required placeholder="Ex: Arroz, Feijão...">
               </div>
             </div>
-            <!-- CAMPO NOVO AQUI -->
-            <label style="margin-top: 10px;">Foto do Item (Opcional)</label>
-           <input type="file" id="imgCompra" accept="image/*" capture="environment" style="padding: 6px; background: #fff;">
             
             <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar Item</button>
           </form>
@@ -142,9 +139,9 @@
           <div id="listaParaComprar"></div>
         </div>
 
-        <!-- Estoque -->
+        <!-- Histórico -->
         <div class="card">
-          <h2 style="font-size: 14px; margin-bottom: 10px; color: #188038; text-align: left;">📦 Estoque em Casa</h2>
+          <h2 style="font-size: 14px; margin-bottom: 10px; color: #188038; text-align: left;">✅ Comprados (Últimos 30 dias)</h2>
           <div id="listaEstoque"></div>
         </div>
       </div>

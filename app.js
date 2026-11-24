@@ -8,7 +8,6 @@ let timeoutPopup = null;
 let idEditandoGastoPessoal = null;
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const IMAGENS_MESES = ["mes1.jpg","mes2.jpg","mes3.jpg","mes4.jpg","mes5.jpg","mes6.jpg","mes7.jpg","mes8.jpg","mes9.jpg","mes10.jpg","mes11.jpg","mes12.jpg"];
 // COLOQUE ISSO:
 let CORES_CATEGORIAS = {}; 
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
@@ -100,7 +99,35 @@ window.alternarTipo = function() {
     }
 };
 
-function atualizarPapelParedeMes(deslocamento){const hoje=new Date();let mesIndex=(hoje.getMonth()+deslocamento)%12;if(mesIndex<0)mesIndex+=12;const urlImagem=IMAGENS_MESES[mesIndex];document.querySelectorAll('.mes-nav').forEach(barra=>{barra.style.backgroundImage=`url('${urlImagem}')`;});}
+function atualizarPapelParedeMes(deslocamento){
+    const hoje = new Date();
+    let mesIndex = (hoje.getMonth() + deslocamento) % 12;
+    if (mesIndex < 0) mesIndex += 12;
+    
+    const barra = document.querySelector('.mes-nav');
+    if (barra) {
+        // Cores equilibradas e elegantes
+        const coresFundo = [
+            'linear-gradient(135deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%)', // Jan - Rosa pastel
+            'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', // Fev - Lilás
+            'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)', // Mar - Verde água/azul
+            'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)', // Abr - Pêssego/Roxo
+            'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', // Mai - Azul claro
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Jun - Pink
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Jul - Azul ciano
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Ago - Verde neon
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Set - Rosa/Amarelo
+            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', // Out - Turquesa/Roxo
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Nov - Menta
+            'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)'  // Dez - Coral
+        ];
+        
+        barra.style.backgroundImage = coresFundo[mesIndex];
+        barra.style.backgroundSize = '200% 200%';
+        barra.style.animation = 'gradientShift 5s ease infinite';
+    }
+}
+
 function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},400)}
 
 function fecharPopup(id){
@@ -513,21 +540,43 @@ if(editandoContaId) {
             await supabaseClient.from('lancamentos').insert(novos);
             mostrarPopupSucesso("Transformado em parcelado!");
         } else {
-            // Continua fixo mensal: ATUALIZA TODOS DO GRUPO
-            // Mantém a data original de cada ocorrência (não recalcula)
-            await supabaseClient.from('lancamentos').update({
-                categoria_id: parseInt(catConta.value),
-                descricao: descBase,
-                valor: v
-            }).eq('grupo_parcelamento', grupoId);
+            // Continua fixo mensal: RECRIA TODO O GRUPO COM A NOVA DATA
+            // 1. Apaga o grupo inteiro antigo
+            await supabaseClient.from('lancamentos')
+                .delete().eq('grupo_parcelamento', grupoId);
 
-            // Atualiza só a data e o "pago" do item editado (o que o usuário está vendo)
-            await supabaseClient.from('lancamentos').update({
-                data_vencimento: vencConta.value,
-                pago: pagoConta.checked
-            }).eq('id', editandoContaId);
+            // 2. Calcula os novos meses (do atual até o próximo ano)
+            const dataBase = new Date(vencConta.value + 'T12:00:00');
+            const diaBase = dataBase.getDate();
+            const novosMeses = [];
+            
+            // Vamos recriar os próximos 24 meses para frente (passados não são recriados)
+            // Se quiser mais meses, aumente o número 24 abaixo
+            for (let i = 0; i < 24; i++) {
+                const dataAlvo = new Date(dataBase);
+                dataAlvo.setMonth(dataAlvo.getMonth() + i);
+                
+                // Ajusta caso o mês não tenha o mesmo dia (ex: 31 de fevereiro)
+                if (dataAlvo.getDate() !== diaBase) {
+                    dataAlvo.setDate(0); 
+                }
 
-            mostrarPopupSucesso("Conta fixa atualizada em todos os meses!");
+                novosMeses.push({
+                    user_id: usuarioLogado.id,
+                    categoria_id: parseInt(catConta.value),
+                    descricao: descBase,
+                    valor: v,
+                    data_vencimento: dataAlvo.toISOString().split('T')[0],
+                    pago: (i === 0) ? pagoConta.checked : false, // Só o primeiro herda o "pago"
+                    parcelas: 'Mensal',
+                    grupo_parcelamento: grupoId
+                });
+            }
+            
+            // 3. Insere todos os novos meses
+            await supabaseClient.from('lancamentos').insert(novosMeses);
+
+            mostrarPopupSucesso("Conta fixa atualizada! Novos meses gerados.");
         }
 
     // ============================================================
@@ -762,16 +811,21 @@ async function carregarMetas(){
         return;
     }
     
-    if(data.length===0){listaMetas.innerHTML='<div class="ultimos-aviso">Nenhuma meta criada ainda.<br>Clique no + para sonhar!</div>'}
-    else{
+    if(data.length===0){
+        listaMetas.innerHTML='<div class="ultimos-aviso">Nenhuma meta criada ainda.<br>Clique no + para sonhar!</div>';
+    } else {
+        // Paleta de cores exclusivas para as metas
+        const coresMetas = ['#ff416c', '#4facfe', '#43e97b', '#fa709a', '#8e2de2'];
+        
         let h='';
-        data.forEach(m=>{
+        data.forEach((m, index)=>{
             const progresso = m.valor_guardado > 0 ? (m.valor_guardado / m.valor_total) * 100 : 0;
             const pct = Math.min(progresso, 100).toFixed(0);
             const falta = m.valor_total - m.valor_guardado;
+            const corCard = coresMetas[index % coresMetas.length]; // Cor baseada na posição
             
             h+=`
-            <div class="card-meta">
+            <div class="card-meta" style="border-top: 4px solid ${corCard};">
                ${m.imagem_url ? `
     ${m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i) 
         ? `<img src="${m.imagem_url}" alt="${m.nome}" style="cursor:pointer;" onclick="window.open('${m.imagem_url}', '_blank')">` 
@@ -780,12 +834,12 @@ async function carregarMetas(){
 ` : `<img src="https://cdn-icons-png.flaticon.com/512/1169/1169628.png" alt="${m.nome}" style="opacity: 0.5; padding: 20px;">`}
                 
                 <div style="display:flex; justify-content:space-between; padding: 5px 5px 0 5px; align-items: center;">
-    <div class="meta-titulo" style="margin:0; flex:1;">${m.nome}</div>
-    <div style="display:flex; gap:2px;">
-        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='editarMeta(${JSON.stringify(m)})' title="Editar">✏️</button>
-        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
-    </div>
-</div>
+                    <div class="meta-titulo" style="margin:0; flex:1;">${m.nome}</div>
+                    <div style="display:flex; gap:2px;">
+                        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='editarMeta(${JSON.stringify(m)})' title="Editar">✏️</button>
+                        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
+                    </div>
+                </div>
 
                 <div class="meta-conteudo" style="padding-top: 5px; padding: 5px;">
                     <div class="meta-valores">
@@ -794,7 +848,7 @@ async function carregarMetas(){
                     </div>
                     
                     <div class="barra-progresso-container">
-                        <div class="barra-progresso-preenchida" style="width: ${pct}%;"></div>
+                        <div class="barra-progresso-preenchida" style="width: ${pct}%; background: linear-gradient(90deg, ${corCard}, ${corCard}dd);"></div>
                         <div class="porcentagem-texto">${pct}%</div>
                     </div>
                     
@@ -1000,7 +1054,6 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
             if (error) throw error;
             mostrarPopupSucesso("Anotação atualizada!");
         } else {
-            // NOVO: Limpamos o ID antes de inserir para garantir que não vai dar conflito
             idEditandoGastoPessoal = null; 
             
             const { error } = await supabaseClient.from('gastos_pessoais')
@@ -1014,10 +1067,22 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
             mostrarPopupSucesso("Anotação salva!");
         }
 
-        // Limpa o formulário e restaura o botão ANTES de buscar os dados
-        cancelarEdicaoGastoPessoal();
+        // Limpa o formulário manualmente (mais garantido)
+        document.getElementById("formGastoPessoal").reset();
+        document.getElementById("msgGastoPessoal").textContent = "";
         
-        // Só agora recarrega a tela com os dados novos
+        // Restaura o botão
+        btn.disabled = false;
+        btn.textContent = "Adicionar";
+        
+        // Esconde botão cancelar se estiver visível
+        const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
+        if (btnCancelar) btnCancelar.style.display = "none";
+
+        // Reseta o ID de edição
+        idEditandoGastoPessoal = null;
+
+        // Recarrega a lista
         carregarGastosPessoais();
 
     } catch (err) {
@@ -1055,74 +1120,15 @@ document.querySelectorAll('.popup-overlay').forEach(popup => {
 });
 
 // ==========================================
-// COMPRAS E ESTOQUE
+// COMPRAS E ESTOQUE (CHECKLIST DE MERCADO)
 // ==========================================
-async function carregarCompras() {
-    const listaComprar = document.getElementById('listaParaComprar');
-    const listaEstoque = document.getElementById('listaEstoque');
-    listaComprar.innerHTML = 'Carregando...';
-    listaEstoque.innerHTML = 'Carregando...';
-
-    const { data, error } = await supabaseClient.from('compras').select('*');
-    if (error) {
-        listaComprar.innerHTML = 'Erro ao carregar.';
-        return;
-    }
-
-    const paraComprar = data.filter(item => item.status === 'comprar').sort((a,b) => a.nome.localeCompare(b.nome));
-    const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => a.nome.localeCompare(b.nome));
-
-    if (paraComprar.length === 0) {
-        listaComprar.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nada para comprar no momento.</div>';
-    } else {
-        let h = `<table class="tabela-ultimos"><tbody>`;
-        paraComprar.forEach(item => {
-            const img = item.imagem_url ? item.imagem_url : 'https://cdn-icons-png.flaticon.com/512/1169/1169628.png';
-            h += `<tr class="linha-pendente">
-                <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" onchange="marcarComprado(${item.id})"></td>
-                <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
-                    <img src="${img}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
-                    <strong>${item.nome}</strong>
-                </td>
-                <td class="col-valor" style="color:#b3261e;">Qtd: ${item.quantidade}</td>
-                <td class="col-acoes"><button class="btn-acao" onclick="excluirCompra(${item.id})">🗑️</button></td>
-            </tr>`;
-        });
-        listaComprar.innerHTML = h + `</tbody></table>`;
-    }
-
-    if (emEstoque.length === 0) {
-        listaEstoque.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Estoque vazio.</div>';
-    } else {
-        let h = `<table class="tabela-ultimos"><tbody>`;
-        emEstoque.forEach(item => {
-            const img = item.imagem_url ? item.imagem_url : 'https://cdn-icons-png.flaticon.com/512/1169/1169628.png';
-            h += `<tr class="linha-paga">
-                <td style="width:30px;text-align:center"><input type="checkbox" class="check-pago" checked disabled></td>
-                <td style="display: flex; align-items: center; gap: 10px; padding: 4px;">
-                    <img src="${img}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" alt="img">
-                    <strong>${item.nome}</strong>
-                </td>
-                <td class="col-valor" style="color:#188038;">Qtd: ${item.quantidade}</td>
-                <td class="col-acoes">
-                    <button class="btn-acao" style="color:#188038;" onclick="alterarEstoque(${item.id}, -1)">➖</button>
-                    <button class="btn-acao" style="color:#188038;" onclick="alterarEstoque(${item.id}, 1)">➕</button>
-                    <button class="btn-acao" style="color:#188038;" onclick="excluirCompra(${item.id})">🗑️</button>
-                </td>
-            </tr>`;
-        });
-        listaEstoque.innerHTML = h + `</tbody></table>`;
-    }
-}
-
 document.getElementById("formCompra").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById('nomeCompra').value.trim();
-    const qtd = parseInt(document.getElementById('qtdCompra').value);
-    const fileInput = document.getElementById('imgCompra');
-    const file = fileInput.files[0];
+    // Agora pega o texto exato (ex: "1 kg")
+    const qtd = document.getElementById('qtdCompra').value.trim(); 
 
-    if (!nome || qtd < 1) return;
+    if (!nome || !qtd) return;
 
     const btn = e.target.querySelector('button[type="submit"]');
     const textoOriginal = btn.textContent;
@@ -1130,26 +1136,17 @@ document.getElementById("formCompra").onsubmit = async (e) => {
     btn.textContent = "Enviando...";
     btn.disabled = true;
 
-    let imagemUrl = null;
-
     try {
-        if (file) {
-            const nomeArquivo = `${Date.now()}_${file.name.replace(/\s/g, '_')}`; 
-            const { data, error: uploadError } = await supabaseClient.storage.from('imagens').upload(nomeArquivo, file);
-            if (uploadError) throw new Error("Erro ao subir imagem: " + uploadError.message);
-            const { data: publicUrlData } = supabaseClient.storage.from('imagens').getPublicUrl(nomeArquivo);
-            imagemUrl = publicUrlData.publicUrl;
-        }
-
         const { error } = await supabaseClient.from('compras').insert([{
-            nome: nome, quantidade: qtd, status: 'comprar', imagem_url: imagemUrl
+            nome: nome, 
+            quantidade: qtd, 
+            status: 'comprar'
         }]);
 
         if (error) throw error;
 
         document.getElementById('nomeCompra').value = '';
         document.getElementById('qtdCompra').value = '1';
-        fileInput.value = '';
         carregarCompras();
 
     } catch (err) {
@@ -1160,60 +1157,114 @@ document.getElementById("formCompra").onsubmit = async (e) => {
     }
 };
 
-window.marcarComprado = async function(id) {
-    const { data: itemComprado, error: errBusca } = await supabaseClient.from('compras').select('*').eq('id', id).single();
-    if (errBusca || !itemComprado) return;
+// ==========================================
+// COMPRAS E ESTOQUE (CHECKLIST DE MERCADO)
+// ==========================================
+async function carregarCompras() {
+    const listaComprar = document.getElementById('listaParaComprar');
+    const listaEstoque = document.getElementById('listaEstoque');
+    listaComprar.innerHTML = 'Carregando...';
+    listaEstoque.innerHTML = 'Carregando...';
 
-    const { data: itemNoEstoque } = await supabaseClient.from('compras').select('*').ilike('nome', itemComprado.nome).eq('status', 'estoque').maybeSingle();
+    // 1. Limpa o histórico com mais de 30 dias automaticamente
+    const dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - 30);
+    const dataLimiteStr = dataLimite.toISOString();
+    
+    await supabaseClient
+        .from('compras')
+        .delete()
+        .eq('status', 'estoque')
+        .lt('data_compra', dataLimiteStr);
 
-    if (itemNoEstoque) {
-        const novaQtd = itemNoEstoque.quantidade + itemComprado.quantidade;
-        const novaImagem = itemComprado.imagem_url ? itemComprado.imagem_url : itemNoEstoque.imagem_url;
-        await supabaseClient.from('compras').update({ quantidade: novaQtd, imagem_url: novaImagem, nome: itemComprado.nome }).eq('id', itemNoEstoque.id);
-        await supabaseClient.from('compras').delete().eq('id', id);
+    // 2. Busca os itens
+    const { data, error } = await supabaseClient.from('compras').select('*');
+    if (error) {
+        listaComprar.innerHTML = 'Erro ao carregar.';
+        return;
+    }
+
+    const paraComprar = data.filter(item => item.status === 'comprar').sort((a,b) => a.nome.localeCompare(b.nome));
+    // No histórico, os mais recentes ficam em cima
+    const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => new Date(b.data_compra || 0) - new Date(a.data_compra || 0));
+
+    // --- RENDERIZA LISTA PARA COMPRAR ---
+    if (paraComprar.length === 0) {
+        listaComprar.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nada para comprar no momento.</div>';
     } else {
-        await supabaseClient.from('compras').update({ status: 'estoque' }).eq('id', id);
+        let h = `<table class="tabela-ultimos"><tbody>`;
+        paraComprar.forEach(item => {
+            h += `<tr class="linha-pendente">
+                <td style="width:30px;text-align:center">
+                    <input type="checkbox" class="check-pago" onchange="marcarComprado(${item.id})">
+                </td>
+                <td style="padding: 6px 4px;">
+                    <strong style="color: #b3261e; font-size: 14px;">${item.quantidade}x</strong> 
+                    <span style="font-size: 14px; margin-left: 4px;">${item.nome}</span>
+                </td>
+            </tr>`;
+        });
+        listaComprar.innerHTML = h + `</tbody></table>`;
+    }
+
+    // --- RENDERIZA HISTÓRICO ---
+    if (emEstoque.length === 0) {
+        listaEstoque.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nenhum item comprado nos últimos 30 dias.</div>';
+    } else {
+        let h = `<table class="tabela-ultimos"><tbody>`;
+        emEstoque.forEach(item => {
+            // BLINDAGEM: Se a data for inválida ou nula, mostra um aviso
+            let dataTexto = "Data não registrada";
+            if (item.data_compra) {
+                const dataObj = new Date(item.data_compra);
+                if (!isNaN(dataObj.getTime())) {
+                    const dataFormatada = dataObj.toLocaleDateString('pt-BR');
+                    const horaFormatada = dataObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    dataTexto = `Comprado em: ${dataFormatada} às ${horaFormatada}`;
+                }
+            }
+
+            h += `<tr class="linha-paga" style="opacity: 0.8;">
+                <td style="width:30px;text-align:center">
+                    <input type="checkbox" class="check-pago" checked disabled>
+                </td>
+                <td style="padding: 6px 4px;">
+                    <strong style="color: #188038; font-size: 14px;">${item.quantidade}x</strong> 
+                    <span style="font-size: 14px; margin-left: 4px; text-decoration: line-through; color: #64748b;">${item.nome}</span>
+                    <br>
+                    <small style="color: #64748b; font-size: 10px;">${dataTexto}</small>
+                </td>
+            </tr>`;
+        });
+        listaEstoque.innerHTML = h + `</tbody></table>`;
+    }
+}
+
+window.marcarComprado = async function(id) {
+    // BLINDAGEM: Evita que a página pisque se o usuário clicar várias vezes rápido
+    const check = document.querySelector(`input[onchange*="marcarComprado(${id})"]`);
+    if (check) check.disabled = true;
+
+    // Pega a data e hora atual no fuso horário local, formatada corretamente para o Supabase
+    const agora = new Date().toISOString();
+    
+    const { error } = await supabaseClient
+        .from('compras')
+        .update({ 
+            status: 'estoque',
+            data_compra: agora
+        })
+        .eq('id', id);
+    
+    if (error) {
+        console.error("Erro ao marcar como comprado:", error);
+        alert("Erro ao salvar no banco. Verifique se a coluna 'data_compra' existe.");
+        if (check) check.disabled = false; // Libera o botão se der erro
+        return;
     }
     
     carregarCompras();
 };
-
-window.alterarEstoque = async function(id, mudanca) {
-    const { data } = await supabaseClient.from('compras').select('quantidade').eq('id', id).single();
-    if (!data) return;
-
-    const novaQtd = data.quantidade + mudanca;
-
-    if (novaQtd <= 0) {
-        mostrarConfirmacao("A quantidade chegou a zero. Deseja excluir este item do estoque?", async function() {
-            await supabaseClient.from('compras').delete().eq('id', id);
-            carregarCompras();
-        });
-    } else {
-        await supabaseClient.from('compras').update({ quantidade: novaQtd }).eq('id', id);
-        carregarCompras();
-    }
-};
-
-window.excluirCompra = async function(id) {
-    mostrarConfirmacao("Tem certeza que deseja excluir este item?", async function() {
-        await supabaseClient.from('compras').delete().eq('id', id);
-        carregarCompras();
-    });
-};
-
-window.mostrarConfirmacao = function(mensagem, callback) {
-    document.getElementById('textoConfirmacao').textContent = mensagem;
-    const btn = document.getElementById('btnConfirmarAcao');
-    const novoBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(novoBtn, btn);
-    novoBtn.onclick = function() {
-        fecharPopup('popupConfirmacao');
-        callback();
-    };
-    document.getElementById('popupConfirmacao').classList.add('ativo');
-};
-
 // ==========================================
 // NOTAS E RECIBOS
 // ==========================================

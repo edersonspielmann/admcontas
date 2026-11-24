@@ -37,14 +37,44 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 .cat-desc{font-size:12px;color:#64748b}
 
 /* Seletor de Mês */
-.mes-nav{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:8px 12px; border-radius:10px; margin-bottom:8px;
-    box-shadow:0 2px 10px rgba(0,0,0,.05); border:1px solid #e2e8f0;
+.mes-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; border-radius: 10px; margin-bottom: 8px;
     background-size: cover; background-position: center;
     position: relative; overflow: hidden; z-index: 1;
+    color: #fff;
+    transition: background-image 0.5s ease-in-out; /* Transição suave ao mudar de mês */
 }
-.mes-nav::before { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.4); z-index: -1; }
+
+/* Removi o ::before antigo que escurecia a tela inteira */
+.mes-nav::before { content: none; }
+
+/* Deixa o título do mês (Mês/Ano) com uma sombra para dar contraste */
+.mes-titulo { 
+    color: #ffffff; 
+    z-index: 2; 
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.6); 
+    font-size: 15px; 
+    font-weight: bold;
+    margin: 0; 
+    text-align: center; 
+}
+
+/* As setinhas de navegação também ganham sombra */
+.nav-btn { 
+    background: none !important; 
+    border: none !important; 
+    min-height: auto !important; 
+    margin: 0 !important; 
+    padding: 0 10px !important; 
+    font-size: 24px !important; 
+    color: #ffffff !important; 
+    cursor: pointer; 
+    z-index: 2; 
+    width: auto !important; 
+    box-shadow: none !important;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
+}
 .nav-btn { background: none !important; border: none !important; min-height: auto !important; margin: 0 !important; padding: 0 10px !important; font-size: 24px !important; color: #ffffff !important; cursor: pointer; z-index: 2; width: auto !important; box-shadow: none !important; }
 .mes-titulo { color: #ffffff; z-index: 2; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); font-size: 15px; margin: 0; text-align: center; }
 
@@ -241,23 +271,36 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 
 @keyframes subir { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-/* Estilos para os Cards de Metas */
+/* =========================================
+   ESTILOS PARA OS CARDS DE METAS (PREMIUM)
+   ========================================= */
 .card-meta { 
-    background: #fff; 
+    background: rgba(255, 255, 255, 0.65) !important; /* Vidro translúcido */
+    backdrop-filter: blur(15px) !important;
+    -webkit-backdrop-filter: blur(15px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
     border-radius: 12px; 
-    box-shadow: 0 4px 10px rgba(0,0,0,.1); 
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important; 
     overflow: hidden; 
-    margin-bottom: 0; /* Tiramos a margem de baixo pois o grid já tem gap */
+    margin-bottom: 0; 
     display: flex;
     flex-direction: column;
-    height: 100%; /* Para os cards ficarem com a mesma altura */
+    height: 100%; 
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+
+/* Efeito de flutuar ao passar o mouse */
+.card-meta:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25) !important;
+}
+
 .card-meta img {
     width: 100%; 
     height: 100px; 
     object-fit: cover; 
     object-position: top; 
-    border-bottom: 3px solid #188038;
+    border-bottom: 3px solid rgba(0,0,0,0.1); /* Borda neutra, a cor vem do JS */
     background-color: #f1f5f9; 
     transition: transform 0.3s ease;
 }
@@ -265,34 +308,38 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
 .card-meta img:hover {
     transform: scale(1.05);
 }
+
 .meta-conteudo { 
-    padding: 8px; /* Menos espaço interno */
+    padding: 8px; 
     display: flex;
     flex-direction: column;
     flex: 1;
 }
+
 .meta-titulo { 
-    font-size: 13px; /* Fonte menor */
-    font-weight: bold; 
+    font-size: 14px; 
+    font-weight: 800; /* Mais negrito */
     margin-bottom: 4px; 
     color: #142b42; 
     white-space: nowrap; 
     overflow: hidden; 
-    text-overflow: ellipsis; /* Coloca "..." se o nome for muito grande */
+    text-overflow: ellipsis; 
+    letter-spacing: -0.3px;
 }
+
 .meta-valores { 
     display: flex; 
     justify-content: space-between; 
     font-size: 10px;
     color: #475569; 
     margin-bottom: 8px; 
-    background: #f8fafc; 
+    background: rgba(255, 255, 255, 0.5); /* Fundo semi-transparente */
     padding: 4px; 
     border-radius: 6px; 
     flex-direction: column;
     gap: 2px;
 }
-.meta-valores strong { color: #188038; }
+.meta-valores strong { color: #142b42; }
 
 /* A BARRA DE PROGRESSO ESTILO NEON */
 .barra-progresso-container { 
@@ -308,17 +355,31 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); 
 }
 
-/* BARRA DE PROGRESSO VIBRANTE */
+/* A cor de fundo do preenchimento será definida pelo JS */
 .barra-progresso-preenchida { 
     position: absolute; 
     left: 0; 
     top: 0; 
     height: 100%; 
-    background: linear-gradient(90deg, #ff8a00, #e52e71); /* Laranja para Rosa */
     border-radius: 18px; 
     transition: width 0.8s ease-in-out; 
     z-index: 1; 
-    box-shadow: 0 0 15px rgba(229, 46, 113, 0.6); /* Brilho neon */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5) !important;
+    overflow: hidden;
+}
+
+/* Efeito de "luz passando" na barra de progresso */
+.barra-progresso-preenchida::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: brilhoPassando 2s infinite;
+}
+
+@keyframes brilhoPassando {
+    0% { left: -100%; }
+    100% { left: 200%; }
 }
 
 .porcentagem-texto { 
@@ -331,19 +392,25 @@ button{display:block;width:100%;min-height:40px;margin-top:10px;padding:8px;back
     color: #fff; 
     text-shadow: 1px 1px 3px rgba(0,0,0,0.8); 
 }
+
 .btn-meta-add { 
     background: #142b42; 
     color: white; 
     border: none; 
-    padding: 6px;
+    padding: 8px; 
     border-radius: 6px; 
     font-weight: bold; 
     cursor: pointer; 
     width: 100%; 
-    font-size: 11px;
-    transition: background 0.3s; 
+    font-size: 12px;
+    transition: background 0.3s, transform 0.1s; 
     margin-top: auto;
 }
+
+.btn-meta-add:active {
+    transform: scale(0.96); /* Efeito de apertar */
+}
+
 .btn-meta-add:hover { background: #188038; }
 
 .tabela-ultimos td.col-acoes { justify-content: flex-end !important; }
@@ -405,4 +472,64 @@ body {
 /* Deixa o card que envolve os bloquinhos mais charmoso */
 #listaGastosPessoais {
     padding-bottom: 10px;
+}
+
+/* Animação do fundo do mês */
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Estilo da barra do mês */
+.mes-nav {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; border-radius: 10px; margin-bottom: 8px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+    background-size: cover; background-position: center;
+    position: relative; overflow: hidden; z-index: 1;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Título do Mês (Legível em qualquer fundo) */
+.mes-titulo { 
+    color: #ffffff !important; 
+    z-index: 2; 
+    /* Sombra forte para contraste */
+    text-shadow: 0px 2px 4px rgba(0,0,0,0.8), 0px 0px 8px rgba(0,0,0,0.5) !important; 
+    font-size: 15px; 
+    font-weight: bold;
+    margin: 0; 
+    text-align: center; 
+}
+
+/* Setinhas de navegação */
+.nav-btn { 
+    background: none !important; 
+    border: none !important; 
+    min-height: auto !important; 
+    margin: 0 !important; 
+    padding: 0 10px !important; 
+    font-size: 24px !important; 
+    color: #ffffff !important; 
+    cursor: pointer; 
+    z-index: 2; 
+    width: auto !important; 
+    box-shadow: none !important;
+    text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+    transition: transform 0.2s ease;
+}
+
+.nav-btn:hover {
+    transform: scale(1.2);
+}
+
+/* Animação do gradiente */
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
 }

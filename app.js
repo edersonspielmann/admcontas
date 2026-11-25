@@ -3,9 +3,11 @@ const SUPABASE_KEY = 'sb_publishable_s87sEdRzaBnha9yBhNfwVw_8cq-m3_1';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let usuarioLogado = null, enviando = false, editandoContaId = null, editandoMetaId = null;
+let senhaMestraCofre = null; // Fica na memória, some se recarregar a página
 let deslocamentoMes = 0;
 let timeoutPopup = null;
 let idEditandoGastoPessoal = null;
+let acaoPosDesbloqueio = null; // Guarda o que deve ser feito após desbloquear o cofre
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 // COLOQUE ISSO:
@@ -14,6 +16,44 @@ const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElem
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
 
 // FUNÇÕES DE APOIO
+// Converte um arquivo (File) para Base64
+function arquivoParaBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]); // Pega só o conteúdo Base64
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Converte Base64 para Blob (para visualizar a imagem/PDF)
+function base64ParaBlob(base64, tipo) {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], {type: tipo});
+}
+
+function criptografarComSenha(texto) {
+    if (!texto || !senhaMestraCofre) return null;
+    return CryptoJS.AES.encrypt(texto, senhaMestraCofre).toString();
+}
+
+// Função para descriptografar os dados com a senha mestra
+function descriptografarComSenha(texto) {
+    if (!texto || !senhaMestraCofre) return "";
+    try {
+        const bytes = CryptoJS.AES.decrypt(texto, senhaMestraCofre);
+        const original = bytes.toString(CryptoJS.enc.Utf8);
+        // Se a descriptografia falhar, o retorno fica vazio ou com erro
+        return original || "Erro: Senha incorreta";
+    } catch (e) {
+        return "Erro: Senha incorreta";
+    }
+}
 function gerarUUID(){
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -46,6 +86,56 @@ function obterMesAno(d){
 function formatarReal(v){
     return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
 }
+
+window.desbloquearCofre = async function() {
+    const senhaDigitada = document.getElementById('inputSenhaMestra').value;
+    const msg = document.getElementById('msgSenhaMestra');
+
+    if (!senhaDigitada) {
+        msg.textContent = "Digite uma senha.";
+        return;
+    }
+
+    senhaMestraCofre = senhaDigitada;
+    
+    const { data } = await supabaseClient.from('gastos_pessoais').select('senha').limit(1);
+    
+    if (data && data.length > 0 && data[0].senha) {
+        const teste = descriptografarComSenha(data[0].senha);
+        if (teste === "Erro: Senha incorreta") {
+            senhaMestraCofre = null;
+            mostrarConfirmacao("A Senha Mestra está incorreta. Tente novamente.", function() {
+                document.getElementById('inputSenhaMestra').focus();
+            });
+            return;
+        }
+    }
+
+    // Se passou, fecha o popup e carrega os dados do cofre
+    fecharPopup('popupSenhaMestra');
+    
+    // Se o usuário estava tentando abrir um documento, executa a ação agora!
+    if (acaoPosDesbloqueio) {
+        acaoPosDesbloqueio();
+        acaoPosDesbloqueio = null; // Limpa a memória
+    } else {
+        // Se não, apenas carrega a lista de anotações normalmente
+        carregarGastosPessoais();
+    }
+};
+
+window.solicitarVisualizacaoCofre = function() {
+    if (senhaMestraCofre) {
+        // Se já estiver desbloqueado, só carrega
+        carregarGastosPessoais();
+    } else {
+        // Se não, define que a ação pós-desbloqueio será carregar a lista
+        acaoPosDesbloqueio = () => carregarGastosPessoais();
+        document.getElementById('inputSenhaMestra').value = '';
+        document.getElementById('msgSenhaMestra').textContent = '';
+        document.getElementById('popupSenhaMestra').classList.add('ativo');
+    }
+};
 
 window.mostrarConfirmacao = function(mensagem, callbackAcao, isPagamento = false) {
     const popup = document.getElementById('popupConfirmacao');
@@ -90,30 +180,33 @@ window.mudarAba = function(a) {
     document.getElementById('abaMetas').style.display = 'none';
     document.getElementById('abaPessoais').style.display = 'none';
     document.getElementById('abaCompras').style.display = 'none';
+    document.getElementById('abaNotas').style.display = 'none';
 
     document.getElementById('btnAbaContas').classList.remove('ativa');
     document.getElementById('btnAbaMetas').classList.remove('ativa');
     document.getElementById('btnAbaPessoais').classList.remove('ativa');
     document.getElementById('btnAbaCompras').classList.remove('ativa');
-	
-	document.getElementById('abaNotas').style.display = 'none';
-document.getElementById('btnAbaNotas').classList.remove('ativa');
+    document.getElementById('btnAbaNotas').classList.remove('ativa');
 
     if (a === 'contas') {
         document.getElementById('abaContas').style.display = 'block';
         document.getElementById('btnAbaContas').classList.add('ativa');
-	} else if (a === 'notas') {
-    document.getElementById('abaNotas').style.display = 'block';
-    document.getElementById('btnAbaNotas').classList.add('ativa');
-    carregarNotas();
+    } else if (a === 'notas') {
+        document.getElementById('abaNotas').style.display = 'block';
+        document.getElementById('btnAbaNotas').classList.add('ativa');
+        carregarNotas();
     } else if (a === 'metas') {
         document.getElementById('abaMetas').style.display = 'block';
         document.getElementById('btnAbaMetas').classList.add('ativa');
         carregarMetas();
     } else if (a === 'pessoais') {
+        acaoPosDesbloqueio = null; 
         document.getElementById('abaPessoais').style.display = 'block';
         document.getElementById('btnAbaPessoais').classList.add('ativa');
-        carregarGastosPessoais();
+        
+        // Em vez de abrir o popup da senha automaticamente, mostramos a mensagem e esperamos o clique no botão
+        document.getElementById('listaGastosPessoais').innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Clique no botão acima para visualizar suas credenciais.</div>';
+        
     } else if (a === 'compras') {
         document.getElementById('abaCompras').style.display = 'block';
         document.getElementById('btnAbaCompras').classList.add('ativa');
@@ -1034,51 +1127,64 @@ async function carregarGastosPessoais() {
 
     const coresBloco = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
 
-    let html = '';
-    data.forEach((gasto) => {
-        const cor = coresBloco[gasto.id % coresBloco.length];
-        const descEscapada = (gasto.descricao || '')
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+let html = '';
+// Objeto para guardar as senhas na memória (seguro contra inspeção de HTML)
+window.senhasCofreMemoria = window.senhasCofreMemoria || {};
 
-        const linkHtml = gasto.link
-            ? `<div class="anot-linha">
-                 <strong>Link:</strong>
-                 <a class="anot-link" href="${gasto.link}" target="_blank" rel="noopener">${gasto.link}</a>
-               </div>`
-            : '';
+data.forEach((gasto) => {
+    const linkReal = gasto.link ? descriptografarComSenha(gasto.link) : '';
+    const loginReal = gasto.login ? descriptografarComSenha(gasto.login) : '';
+    const senhaReal = gasto.senha ? descriptografarComSenha(gasto.senha) : '';
 
-        const loginHtml = gasto.login
-            ? `<div class="anot-linha">
-                 <strong>Login:</strong>
-                 <span>${gasto.login}</span>
-                 <button class="btn-copiar" onclick="copiarTexto('${gasto.login.replace(/'/g, "\\'")}', this)">Copiar</button>
-               </div>`
-            : '';
+    // Guarda a senha real na memória do app usando o ID como chave
+    window.senhasCofreMemoria[gasto.id] = senhaReal;
 
-        const senhaHtml = gasto.senha
-            ? `<div class="anot-linha">
-                 <strong>Senha:</strong>
-                 <span class="senha-valor" data-senha="${gasto.senha.replace(/"/g, '&quot;')}" style="font-family: monospace;">••••••••</span>
-                 <button class="btn-copiar" onclick="copiarTexto('${gasto.senha.replace(/'/g, "\\'")}', this)">Copiar</button>
-                 <button class="btn-copiar" onclick="toggleSenha(this)">👁</button>
-               </div>`
-            : '';
+    const cor = coresBloco[gasto.id % coresBloco.length];
+    const descEscapada = (gasto.descricao || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-        html += `
-        <div class="bloco-anotacao" style="border-left-color: ${cor};"
-             data-id="${gasto.id}">
-            <div class="anot-desc">${descEscapada}</div>
-            ${linkHtml}
-            ${loginHtml}
-            ${senhaHtml}
-            <div class="acoes">
-                <button class="btn-editar-bloco" title="Editar">✏️</button>
-                <button class="btn-excluir-bloco" title="Excluir">🗑️</button>
-            </div>
-        </div>`;
-    });
+    // Usa linkReal no HTML
+    const linkHtml = linkReal
+        ? `<div class="anot-linha">
+             <strong>Link:</strong>
+             <a class="anot-link" href="${linkReal}" target="_blank" rel="noopener">${linkReal}</a>
+           </div>`
+        : '';
 
-    lista.innerHTML = html;
+    // Usa loginReal no HTML
+    const loginHtml = loginReal
+        ? `<div class="anot-linha">
+             <strong>Login:</strong>
+             <span>${loginReal}</span>
+             <button class="btn-copiar" onclick="copiarTextoMemoria(${gasto.id}, 'login', this)">Copiar</button>
+           </div>`
+        : '';
+
+    // Usa senhaReal no HTML (mas não expõe ela no código fonte da página)
+    const senhaHtml = senhaReal
+        ? `<div class="anot-linha">
+             <strong>Senha:</strong>
+             <span class="senha-valor" id="senha-exibir-${gasto.id}" style="font-family: monospace;">••••••••</span>
+             <button class="btn-copiar" onclick="copiarTextoMemoria(${gasto.id}, 'senha', this)">Copiar</button>
+             <button class="btn-copiar" onclick="toggleSenha(${gasto.id}, this)">👁</button>
+           </div>`
+        : '';
+
+    html += `
+    <div class="bloco-anotacao" style="border-left-color: ${cor};"
+         data-id="${gasto.id}">
+        <div class="anot-desc">${descEscapada}</div>
+        ${linkHtml}
+        ${loginHtml}
+        ${senhaHtml}
+        <div class="acoes">
+            <button class="btn-editar-bloco" title="Editar">✏️</button>
+            <button class="btn-excluir-bloco" title="Excluir">🗑️</button>
+        </div>
+    </div>`;
+});
+
+lista.innerHTML = html;
 
     // bind dos botões
     lista.querySelectorAll('.bloco-anotacao').forEach(bloco => {
@@ -1141,18 +1247,19 @@ window.cancelarEdicaoGastoPessoal = function() {
 
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
-    const desc = document.getElementById("descGastoPessoal").value.trim();
-    const link = document.getElementById("linkGastoPessoal").value.trim();
-    const login = document.getElementById("loginGastoPessoal").value.trim();
-    const senha = document.getElementById("senhaGastoPessoal").value.trim();
-
-    const msg = document.getElementById("msgGastoPessoal");
-    const btn = e.target.querySelector('button[type="submit"]');
-
-    if (!desc) {
-        msg.textContent = "Preencha a descrição.";
+    
+    // Se o cofre estiver trancado, intercepta o envio e pede a senha
+    if (!senhaMestraCofre) {
+        // Salva temporariamente os dados para não perder o que foi digitado
+        // (Você pode simplesmente pedir a senha. Após desbloquear, o usuário clica em salvar de novo)
+        acaoPosDesbloqueio = () => document.getElementById("formGastoPessoal").requestSubmit();
+        document.getElementById('inputSenhaMestra').value = '';
+        document.getElementById('msgSenhaMestra').textContent = '';
+        document.getElementById('popupSenhaMestra').classList.add('ativo');
         return;
     }
+
+    // ... restante do código do onsubmit (const desc = ...)
 
     msg.textContent = "";
     btn.disabled = true;
@@ -1161,12 +1268,14 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     const estavaEditando = !!idEditandoGastoPessoal;
 
     try {
-        const payload = {
-            descricao: desc,
-            link: link || null,
-            login: login || null,
-            senha: senha || null
-        };
+const payload = {
+    descricao: desc, // A descrição pode ficar em texto puro se quiser
+    link: link ? criptografarComSenha(link) : null,
+    login: login ? criptografarComSenha(login) : null,
+    senha: senha ? criptografarComSenha(senha) : null,
+    valor: 0,
+    data_gasto: new Date().toISOString().split('T')[0]
+};
 
         if (estavaEditando) {
             const { error } = await supabaseClient.from('gastos_pessoais')
@@ -1202,9 +1311,9 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
 window.editarGastoPessoal = function(item) {
     idEditandoGastoPessoal = item.id;
     document.getElementById("descGastoPessoal").value = item.descricao || '';
-    document.getElementById("linkGastoPessoal").value = item.link || '';
-    document.getElementById("loginGastoPessoal").value = item.login || '';
-    document.getElementById("senhaGastoPessoal").value = item.senha || '';
+   document.getElementById("linkGastoPessoal").value = item.link ? descriptografarComSenha(item.link) : '';
+document.getElementById("loginGastoPessoal").value = item.login ? descriptografarComSenha(item.login) : '';
+document.getElementById("senhaGastoPessoal").value = item.senha ? descriptografarComSenha(item.senha) : '';
 
     const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
     btn.textContent = "Salvar Alterações";
@@ -1415,9 +1524,10 @@ async function carregarNotas() {
         const isPdf = n.tipo_arquivo === 'pdf';
         
         // A imagem/PDF agora tem altura fixa de 120px, deixando espaço para o título embaixo
-        const preview = isPdf
-            ? `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">📄</div>`
-            : `<img src="${n._urlExibir}" style="width:100%; height:120px; object-fit:cover;">`;
+        // Em vez de tentar carregar a imagem com a Signed URL, mostramos um ícone bonito
+const preview = isPdf
+    ? `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">📄</div>`
+    : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">🖼️</div>`;
 
         const descSegura = n.descricao.replace(/'/g, "\\'");
 
@@ -1442,40 +1552,73 @@ async function carregarNotas() {
 }
 
 window.visualizarNota = async function(caminho, tipo, descricao = '') {
-    // Gera signed URL fresca no momento do clique (vale 1h)
-    const { data: signed, error } = await supabaseClient.storage
-        .from('notas')
-        .createSignedUrl(caminho, 3600);
-
-    if (error || !signed) {
-        alert("Não foi possível abrir o arquivo. Tente novamente.");
+    if (!senhaMestraCofre) {
+        // Guarda a ação para abrir o documento depois de desbloquear
+        acaoPosDesbloqueio = () => visualizarNota(caminho, tipo, descricao); 
+        
+        // Abre a janela verde (Senha Mestra) diretamente
+        document.getElementById('inputSenhaMestra').value = '';
+        document.getElementById('msgSenhaMestra').textContent = '';
+        document.getElementById('popupSenhaMestra').classList.add('ativo'); 
+        
         return;
     }
+// ... restante do código
+    try {
+        // 1. Baixa o arquivo criptografado do Storage
+        const { data: blobData, error: downErr } = await supabaseClient.storage
+            .from('notas')
+            .download(caminho);
+            
+        if (downErr) throw downErr;
 
-    const url = signed.signedUrl;
-    
-    // Captura os elementos
-    const imgElement = document.getElementById('imgVisualizarNota');
-    const iframeElement = document.getElementById('pdfVisualizarNota');
-    
-    // Define o título
-    document.getElementById('tituloVisualizarNota').textContent = descricao;
+        // 2. Lê o conteúdo como texto
+        const textoCriptografado = await blobData.text();
 
-    // Alterna entre imagem e PDF
-    if (tipo === 'pdf') {
-        imgElement.style.display = 'none';
-        imgElement.src = ''; // Limpa a imagem anterior
-        iframeElement.src = url;
-        iframeElement.style.display = 'block';
-    } else {
-        iframeElement.style.display = 'none';
-        iframeElement.src = ''; // Limpa o PDF anterior
-        imgElement.src = url;
-        imgElement.style.display = 'block';
+        // 3. Descriptografa
+             // 3. Descriptografa (com proteção contra arquivos antigos)
+        let base64Original = "";
+        try {
+            const bytes = CryptoJS.AES.decrypt(textoCriptografado, senhaMestraCofre);
+            base64Original = bytes.toString(CryptoJS.enc.Utf8);
+                } catch (e) {
+            mostrarConfirmacao("Este documento é antigo e não possui a nova criptografia. Por favor, envie-o novamente.", function() {});
+            return;
+        }
+
+        if (!base64Original || base64Original.length === 0) {
+            mostrarConfirmacao("Não foi possível abrir o arquivo. A Senha Mestra está incorreta.", function() {});
+            return;
+        }
+
+        // 4. Transforma de volta em Blob (Imagem ou PDF) e cria a URL
+        const tipoMime = tipo === 'pdf' ? 'application/pdf' : 'image/jpeg';
+        const blobOriginal = base64ParaBlob(base64Original, tipoMime);
+        const urlExibir = URL.createObjectURL(blobOriginal);
+
+        // 5. Mostra no popup (mesma lógica que você já tinha)
+        const imgElement = document.getElementById('imgVisualizarNota');
+        const iframeElement = document.getElementById('pdfVisualizarNota');
+        document.getElementById('tituloVisualizarNota').textContent = descricao;
+
+        if (tipo === 'pdf') {
+            imgElement.style.display = 'none';
+            imgElement.src = '';
+            iframeElement.src = urlExibir;
+            iframeElement.style.display = 'block';
+        } else {
+            iframeElement.style.display = 'none';
+            iframeElement.src = '';
+            imgElement.src = urlExibir;
+            imgElement.style.display = 'block';
+        }
+        
+        document.getElementById('popupVisualizarNota').classList.add('ativo');
+
+    } catch (err) {
+        console.error(err);
+        alert("Erro ao abrir o documento: " + err.message);
     }
-    
-    // Abre o modal
-    document.getElementById('popupVisualizarNota').classList.add('ativo');
 };
 
 window.excluirNota = async function(id) {
@@ -1517,24 +1660,39 @@ document.getElementById("formNota").onsubmit = async (e) => {
     btn.disabled = true;
     btn.textContent = 'Enviando...';
 
+    if (!senhaMestraCofre) {
+        msg.textContent = "Desbloqueie o Cofre primeiro para usar a mesma senha nos documentos.";
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+        return;
+    }
+
     try {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const nomeArquivo = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        // 1. Lê o arquivo e converte para Base64
+        const base64Original = await arquivoParaBase64(file);
+        
+        // 2. Criptografa o texto Base64 com a Senha Mestra
+        const base64Criptografado = CryptoJS.AES.encrypt(base64Original, senhaMestraCofre).toString();
+        
+        // 3. Transforma o texto criptografado de volta em um arquivo (Blob) para enviar
+        const blobCriptografado = new Blob([base64Criptografado], { type: 'text/plain' });
+        
+        // 4. O nome do arquivo vai ser sempre .txt porque agora é um texto criptografado
+        const nomeArquivo = `${Date.now()}_${Math.random().toString(36).slice(2)}.txt`;
 
         const { error: upErr } = await supabaseClient.storage
             .from('notas')
-            .upload(nomeArquivo, file, { contentType: file.type });
+            .upload(nomeArquivo, blobCriptografado, { contentType: 'text/plain' });
 
         if (upErr) throw new Error("Erro no upload: " + upErr.message);
 
         const tipo = file.type === 'application/pdf' ? 'pdf' : 'imagem';
 
-        // Bucket privado: salva só o CAMINHO, não a URL
         const { error: dbErr } = await supabaseClient.from('notas').insert([{
             user_id: usuarioLogado.id,
             descricao: desc,
-            arquivo_url: nomeArquivo,   // apenas o caminho no bucket
-            tipo_arquivo: tipo
+            arquivo_url: nomeArquivo,
+            tipo_arquivo: tipo // Guardamos o tipo original para saber como exibir depois
         }]);
 
         if (dbErr) throw dbErr;
@@ -1542,7 +1700,7 @@ document.getElementById("formNota").onsubmit = async (e) => {
         document.getElementById('formNota').reset();
         fecharPopup('popupNota');
         carregarNotas();
-        mostrarPopupSucesso("Nota salva!");
+        mostrarPopupSucesso("Documento salvo e criptografado!");
 
     } catch (err) {
         msg.textContent = "Erro: " + err.message;

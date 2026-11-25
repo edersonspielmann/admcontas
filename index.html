@@ -51,34 +51,36 @@
     <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">🔐 Nova Anotação</h2>
     <form id="formGastoPessoal">
       <label>Descrição</label>
-      <textarea id="descGastoPessoal" required placeholder="Ex: Senha do Wi-Fi&#10;Rede: Casa&#10;Senha: 12345678"
-                style="width:100%; min-height:80px; padding:6px 10px; border:1px solid #d4dce5; border-radius:6px; font-size:14px; font-family:Arial, sans-serif; resize:vertical;"></textarea>
+      <textarea id="descGastoPessoal" required style="width:100%; min-height:80px; padding:6px 10px; border:1px solid #d4dce5; border-radius:6px; font-size:14px; font-family:Arial, sans-serif; resize:vertical;"></textarea>
 
       <label style="margin-top:8px;">Link (opcional)</label>
-      <input type="url" id="linkGastoPessoal" placeholder="https://...">
+      <input type="url" id="linkGastoPessoal">
 
       <div style="display:flex; gap:10px; margin-top:6px">
         <div style="flex:1">
           <label>Login (opcional)</label>
-          <input type="text" id="loginGastoPessoal" placeholder="usuário@email.com">
+          <input type="text" id="loginGastoPessoal">
         </div>
         <div style="flex:1">
           <label>Senha (opcional)</label>
-          <input type="text" id="senhaGastoPessoal" placeholder="••••••••">
+          <input type="text" id="senhaGastoPessoal">
         </div>
       </div>
 
       <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
-      <button type="button" id="btnCancelarGastoPessoal"
-              style="display:none; background:#64748b; margin-top:8px;"
-              onclick="cancelarEdicaoGastoPessoal()">Cancelar Edição</button>
+      <button type="button" id="btnCancelarGastoPessoal" style="display:none; background:#64748b; margin-top:8px;" onclick="cancelarEdicaoGastoPessoal()">Cancelar Edição</button>
     </form>
     <div id="msgGastoPessoal" class="msg-erro"></div>
   </div>
 
+  <!-- ⬇️ AQUI É O PASSO 2 ⬇️ -->
+  <div class="card" style="margin-bottom: 15px; padding: 10px;">
+      <button type="button" onclick="solicitarVisualizacaoCofre()" style="background:#142b42; margin:0;">🔓 Visualizar credenciais registradas</button>
+  </div>
+  <!-- ⬆️ FIM DO PASSO 2 ⬆️ -->
+
   <div class="card">
     <div id="listaGastosPessoais"></div>
-    <!-- Removido o total -->
   </div>
 </div>
 
@@ -306,7 +308,16 @@
       <button id="btnConfirmarAcao" style="background:#b3261e;">Sim, tenho certeza</button>
     </div>
   </div>
-
+<!-- POPUP SENHA MESTRA DO COFRE -->
+<div id="popupSenhaMestra" class="popup-overlay">
+  <div class="popup-caixa">
+    <h2 style="color:#142b42; margin-top:0; margin-bottom: 20px;">🔒 Cofre Seguro</h2>
+    <input type="password" id="inputSenhaMestra" placeholder="Senha Mestra" style="margin-bottom:15px">
+    <button onclick="desbloquearCofre()" style="background:#188038">Desbloquear</button>
+    <button style="background:#64748b; margin-top: 8px;" onclick="fecharPopup('popupSenhaMestra')">Cancelar</button>
+    <div id="msgSenhaMestra" class="msg-erro" style="margin-top:10px;"></div>
+  </div>
+</div>
   <script src="app.js"></script>
 </body>
 </html>

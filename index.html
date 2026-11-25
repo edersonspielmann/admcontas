@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="ADM CONTAS">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
   <!-- TELA DE LOGIN -->
@@ -39,42 +40,47 @@
       <div class="abas-principais">
         <button class="aba-btn ativa" id="btnAbaContas" onclick="mudarAba('contas')" title="Contas">💳</button>
         <button class="aba-btn" id="btnAbaCompras" onclick="mudarAba('compras')" title="Compras">🛒</button>
-        <button class="aba-btn" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Gastos Pessoais">👤</button>
+       <button class="aba-btn" id="btnAbaPessoais" onclick="mudarAba('pessoais')" title="Cofre / Anotações">🔐</button>
         <button class="aba-btn" id="btnAbaMetas" onclick="mudarAba('metas')" title="Metas">🎯</button>
 		<button class="aba-btn" id="btnAbaNotas" onclick="mudarAba('notas')" title="Notas e Recibos">📄</button>
       </div>
 
-      <!-- ABA GASTOS PESSOAIS -->
-      <div id="abaPessoais" style="display:none">
-        <div class="card" style="margin-bottom: 15px;">
-          <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">Anotações pessoais</h2>
-          <form id="formGastoPessoal">
-            <label>Descrição</label>
-            <input type="text" id="descGastoPessoal" required placeholder="Ex: Cinema, Roupas...">
-            
-            <div style="display:flex; gap:10px; margin-top:6px">
-              <div style="flex:1">
-                <label>Valor (R$)</label>
- <input type="text" id="valGastoPessoal" inputmode="decimal" placeholder="Opcional">
-              </div>
-            </div>
-            
-            <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
-<button type="button" id="btnCancelarGastoPessoal"
-        style="display:none; background:#64748b; margin-top:8px;"
-        onclick="cancelarEdicaoGastoPessoal()">Cancelar Edição</button>
-          </form>
-          <div id="msgGastoPessoal" class="msg-erro"></div>
-        </div>
+<!-- ABA COFRE / ANOTAÇÕES -->
+<div id="abaPessoais" style="display:none">
+  <div class="card" style="margin-bottom: 15px;">
+    <h2 style="font-size: 14px; margin-bottom: 10px; color: #142b42; text-align: left;">🔐 Nova Anotação</h2>
+    <form id="formGastoPessoal">
+      <label>Descrição</label>
+      <textarea id="descGastoPessoal" required placeholder="Ex: Senha do Wi-Fi&#10;Rede: Casa&#10;Senha: 12345678"
+                style="width:100%; min-height:80px; padding:6px 10px; border:1px solid #d4dce5; border-radius:6px; font-size:14px; font-family:Arial, sans-serif; resize:vertical;"></textarea>
 
-        <div class="card">
-          <div id="listaGastosPessoais"></div>
-          
-          <div style="text-align: right; margin-top: 15px; font-weight: bold; font-size: 15px; color: #8b5cf6;">
-            Total: <span id="totalGastosPessoais">R$ 0,00</span>
-          </div>
+      <label style="margin-top:8px;">Link (opcional)</label>
+      <input type="url" id="linkGastoPessoal" placeholder="https://...">
+
+      <div style="display:flex; gap:10px; margin-top:6px">
+        <div style="flex:1">
+          <label>Login (opcional)</label>
+          <input type="text" id="loginGastoPessoal" placeholder="usuário@email.com">
+        </div>
+        <div style="flex:1">
+          <label>Senha (opcional)</label>
+          <input type="text" id="senhaGastoPessoal" placeholder="••••••••">
         </div>
       </div>
+
+      <button type="submit" style="background: #142b42; margin-top: 15px;">Adicionar</button>
+      <button type="button" id="btnCancelarGastoPessoal"
+              style="display:none; background:#64748b; margin-top:8px;"
+              onclick="cancelarEdicaoGastoPessoal()">Cancelar Edição</button>
+    </form>
+    <div id="msgGastoPessoal" class="msg-erro"></div>
+  </div>
+
+  <div class="card">
+    <div id="listaGastosPessoais"></div>
+    <!-- Removido o total -->
+  </div>
+</div>
 
       <!-- ABA CONTAS -->
       <div id="abaContas" style="display:none">

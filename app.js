@@ -803,63 +803,85 @@ document.getElementById("mesProximo").onclick=()=>{deslocamentoMes++;carregarCon
 // ==========================================
 async function carregarMetas(){
     const listaMetas = document.getElementById('listaMetas');
-    listaMetas.innerHTML='<div class="ultimos-aviso">Carregando metas...</div>';
-    const{data,error}=await supabaseClient.from('metas').select('*').order('id',{ascending:false});
+    listaMetas.innerHTML='<div class="ultimos-aviso" style="grid-column:1/-1;">Carregando metas...</div>';
+    
+    const { data, error } = await supabaseClient.from('metas').select('*').order('id', { ascending: false });
+    
     if(error){
         console.error(error);
-        listaMetas.innerHTML='<div class="ultimos-aviso" style="color:#b3261e;">Erro ao carregar metas.</div>';
+        listaMetas.innerHTML='<div class="ultimos-aviso" style="color:#b3261e; grid-column:1/-1;">Erro ao carregar metas.</div>';
         return;
     }
     
-    if(data.length===0){
-        listaMetas.innerHTML='<div class="ultimos-aviso">Nenhuma meta criada ainda.<br>Clique no + para sonhar!</div>';
+    if(data.length === 0){
+        listaMetas.innerHTML='<div class="ultimos-aviso" style="grid-column:1/-1;">Nenhuma meta criada ainda.<br>Clique no + para sonhar!</div>';
     } else {
         // Paleta de cores exclusivas para as metas
-        const coresMetas = ['#ff416c', '#4facfe', '#43e97b', '#fa709a', '#8e2de2'];
+        const coresMetas = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
+        let h = '';
         
-        let h='';
-        data.forEach((m, index)=>{
+        data.forEach((m, index) => {
             const progresso = m.valor_guardado > 0 ? (m.valor_guardado / m.valor_total) * 100 : 0;
             const pct = Math.min(progresso, 100).toFixed(0);
             const falta = m.valor_total - m.valor_guardado;
-            const corCard = coresMetas[index % coresMetas.length]; // Cor baseada na posição
+            const corCard = coresMetas[index % coresMetas.length]; 
             
-            h+=`
-            <div class="card-meta" style="border-top: 4px solid ${corCard};">
-               ${m.imagem_url ? `
-    ${m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i) 
-        ? `<img src="${m.imagem_url}" alt="${m.nome}" style="cursor:pointer;" onclick="window.open('${m.imagem_url}', '_blank')">` 
-        : `<img src="https://s0.wp.com/mshots/v1/${encodeURIComponent(m.imagem_url)}?w=400" alt="${m.nome}" style="cursor:pointer; object-fit: cover;" onclick="window.open('${m.imagem_url}', '_blank')">`
-    }
-` : `<img src="https://cdn-icons-png.flaticon.com/512/1169/1169628.png" alt="${m.nome}" style="opacity: 0.5; padding: 20px;">`}
-                
-                <div style="display:flex; justify-content:space-between; padding: 5px 5px 0 5px; align-items: center;">
-                    <div class="meta-titulo" style="margin:0; flex:1;">${m.nome}</div>
-                    <div style="display:flex; gap:2px;">
-                        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='editarMeta(${JSON.stringify(m)})' title="Editar">✏️</button>
-                        <button class="btn-acao" style="font-size:12px; margin:0;" onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
+            // Define a imagem
+let imgHtml = '';
+if (m.imagem_url && m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i)) {
+    // É uma imagem direta
+    imgHtml = `<img src="${m.imagem_url}" alt="${m.nome}" onclick="window.open('${m.imagem_url}', '_blank')" style="cursor:pointer; width: 100%; height: 100%; object-fit: cover;">`;
+} else if (m.imagem_url) {
+    // É um link de site (tem link, mas não é imagem)
+    imgHtml = `
+        <a href="${m.imagem_url}" target="_blank" rel="noopener" style="text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: linear-gradient(135deg, ${corCard}22, ${corCard}55); padding: 0 10px; box-sizing: border-box; cursor: pointer;">
+           <span style="font-size: 10px; color: #142b42; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Acessar Link</span>
+        </a>
+    `;
+} else {
+    // Não tem nem imagem nem link: fundo liso e limpo (sem ícone nenhum)
+    imgHtml = `<div style="width:100%; height:100%; background: linear-gradient(135deg, ${corCard}22, ${corCard}55);"></div>`;
+}
+            
+            // Define a cor do texto da porcentagem (se passou de 50%, fica branco pra ler melhor)
+            const corTextoPct = parseFloat(pct) > 50 ? '#fff' : '#64748b';
+            
+            h += `
+            <div class="card-meta">
+                <div class="meta-img-container">
+                    ${imgHtml}
+                    <div class="meta-acoes">
+                        <button onclick='editarMeta(${JSON.stringify(m).replace(/'/g, "&#39;")})' title="Editar">✏️</button>
+                        <button onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
                     </div>
                 </div>
 
-                <div class="meta-conteudo" style="padding-top: 5px; padding: 5px;">
+                <div class="meta-titulo">${m.nome}</div>
+
+                <div class="meta-conteudo">
                     <div class="meta-valores">
-                        <span>Guardado: <strong>${formatarReal(m.valor_guardado)}</strong></span>
-                        <span>Falta: <strong>${formatarReal(falta > 0 ? falta : 0)}</strong></span>
+                        <div>
+                            <span>Guardado</span>
+                            <strong>${formatarReal(m.valor_guardado)}</strong>
+                        </div>
+                        <div style="text-align: right;">
+                            <span>Falta</span>
+                            <strong>${formatarReal(falta > 0 ? falta : 0)}</strong>
+                        </div>
                     </div>
                     
                     <div class="barra-progresso-container">
-                        <div class="barra-progresso-preenchida" style="width: ${pct}%; background: linear-gradient(90deg, ${corCard}, ${corCard}dd);"></div>
-                        <div class="porcentagem-texto">${pct}%</div>
+                        <div class="barra-progresso-preenchida" style="width: ${pct}%; background: ${corCard};"></div>
+                        <div class="porcentagem-texto" style="color: ${corTextoPct};">${pct}%</div>
                     </div>
                     
-                    <button class="btn-meta-add" onclick="abrirPopupGuardar(${m.id}, '${m.nome}')">+ Guardar Dinheiro</button>
+                    <button class="btn-meta-add" onclick="abrirPopupGuardar(${m.id}, '${m.nome.replace(/'/g, "\\'")}')">+ Guardar</button>
                 </div>
             </div>`;
         });
-        listaMetas.innerHTML=h;
+        listaMetas.innerHTML = h;
     }
 }
-
 document.getElementById("formMeta").onsubmit=async(e)=>{
     e.preventDefault();
     const nome = document.getElementById('nomeMeta').value.trim();
@@ -941,75 +963,117 @@ window.adicionarValorMeta = async function(){
 // ==========================================
 async function carregarGastosPessoais() {
     const lista = document.getElementById('listaGastosPessoais');
-    const totalSpan = document.getElementById('totalGastosPessoais');
-    
-    lista.innerHTML = ''; 
+    lista.innerHTML = '<div class="ultimos-aviso">Carregando...</div>';
 
     const { data, error } = await supabaseClient
-    .from('gastos_pessoais')
-    .select('*')
-    .order('data_gasto', { ascending: false });
+        .from('gastos_pessoais')
+        .select('*')
+        .order('id', { ascending: false });
 
     if (error) {
         console.error("Erro no Supabase:", error);
+        lista.innerHTML = '<div class="ultimos-aviso">Erro ao carregar.</div>';
         return;
     }
 
     if (!data || data.length === 0) {
-        totalSpan.textContent = 'R$ 0,00';
         lista.innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Nenhuma anotação ainda.</div>';
-    } else {
-        let total = 0;
-        
-        lista.style.display = 'grid';
-        lista.style.gridTemplateColumns = 'repeat(auto-fill, minmax(120px, 1fr))';
-        lista.style.gap = '10px';
-        lista.style.marginTop = '10px';
-
-        const coresBloco = ['#fcd34d', '#fca5a5', '#93c5fd', '#86efac'];
-
-        let html = '';
-
-        data.forEach((gasto) => {
-            total += parseFloat(gasto.valor);
-            
-            // Cor fixa baseada no ID do banco
-            const cor = coresBloco[gasto.id % coresBloco.length];
-            
-            html += `
-            <div class="bloco-anotacao" data-id="${gasto.id}" data-desc="${encodeURIComponent(gasto.descricao)}" data-valor="${gasto.valor}" style="background: ${cor}; padding: 10px; border-radius: 8px; box-shadow: 0 3px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between; min-height: 100px; position: relative; border-top: 4px solid rgba(0,0,0,0.1);">
-                
-                <div style="font-size: 13px; font-weight: bold; color: #1e293b; line-height: 1.2; word-break: break-word;">
-                    ${gasto.descricao}
-                </div>
-
-                ${gasto.valor > 0 ? `<div style="font-size: 14px; font-weight: 900; color: #1e293b; margin-top: 8px;">${formatarReal(gasto.valor)}</div>` : ''}
-                
-                <div style="display: flex; justify-content: flex-end; gap: 5px; margin-top: 10px;">
-                    <button class="btn-editar-bloco" style="background: transparent; border: none; color: #1e293b; font-size: 14px; cursor: pointer; padding: 0; min-height: auto; width: auto; margin: 0; opacity: 0.7;">✏️</button>
-                    <button class="btn-excluir-bloco" style="background: transparent; border: none; color: #1e293b; font-size: 14px; cursor: pointer; padding: 0; min-height: auto; width: auto; margin: 0; opacity: 0.7;">🗑️</button>
-                </div>
-            </div>`;
-        });
-
-        lista.innerHTML = html;
-        totalSpan.textContent = formatarReal(total);
-
-        // A MÁGICA DA SEGURANÇA: Adiciona os cliques de forma segura sem quebrar o HTML
-        lista.querySelectorAll('.bloco-anotacao').forEach(bloco => {
-            const id = bloco.getAttribute('data-id');
-            const desc = decodeURIComponent(bloco.getAttribute('data-desc'));
-            const valor = bloco.getAttribute('data-valor');
-
-            bloco.querySelector('.btn-editar-bloco').addEventListener('click', () => {
-                editarGastoPessoal(id, desc, valor);
-            });
-            bloco.querySelector('.btn-excluir-bloco').addEventListener('click', () => {
-                excluirGastoPessoal(id);
-            });
-        });
+        return;
     }
+
+    const coresBloco = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
+
+    let html = '';
+    data.forEach((gasto) => {
+        const cor = coresBloco[gasto.id % coresBloco.length];
+        const descEscapada = (gasto.descricao || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        const linkHtml = gasto.link
+            ? `<div class="anot-linha">
+                 <strong>Link:</strong>
+                 <a class="anot-link" href="${gasto.link}" target="_blank" rel="noopener">${gasto.link}</a>
+               </div>`
+            : '';
+
+        const loginHtml = gasto.login
+            ? `<div class="anot-linha">
+                 <strong>Login:</strong>
+                 <span>${gasto.login}</span>
+                 <button class="btn-copiar" onclick="copiarTexto('${gasto.login.replace(/'/g, "\\'")}', this)">Copiar</button>
+               </div>`
+            : '';
+
+        const senhaHtml = gasto.senha
+            ? `<div class="anot-linha">
+                 <strong>Senha:</strong>
+                 <span class="senha-valor" data-senha="${gasto.senha.replace(/"/g, '&quot;')}" style="font-family: monospace;">••••••••</span>
+                 <button class="btn-copiar" onclick="copiarTexto('${gasto.senha.replace(/'/g, "\\'")}', this)">Copiar</button>
+                 <button class="btn-copiar" onclick="toggleSenha(this)">👁</button>
+               </div>`
+            : '';
+
+        html += `
+        <div class="bloco-anotacao" style="border-left-color: ${cor};"
+             data-id="${gasto.id}">
+            <div class="anot-desc">${descEscapada}</div>
+            ${linkHtml}
+            ${loginHtml}
+            ${senhaHtml}
+            <div class="acoes">
+                <button class="btn-editar-bloco" title="Editar">✏️</button>
+                <button class="btn-excluir-bloco" title="Excluir">🗑️</button>
+            </div>
+        </div>`;
+    });
+
+    lista.innerHTML = html;
+
+    // bind dos botões
+    lista.querySelectorAll('.bloco-anotacao').forEach(bloco => {
+        const id = bloco.getAttribute('data-id');
+        const item = data.find(x => String(x.id) === String(id));
+
+        bloco.querySelector('.btn-editar-bloco').addEventListener('click', () => {
+            editarGastoPessoal(item);
+        });
+        bloco.querySelector('.btn-excluir-bloco').addEventListener('click', () => {
+            excluirGastoPessoal(id);
+        });
+    });
 }
+
+// Mostrar/ocultar senha
+window.toggleSenha = function(btn) {
+    const span = btn.parentElement.querySelector('.senha-valor');
+    if (!span) return;
+    const real = span.getAttribute('data-senha');
+    if (span.textContent === '••••••••') {
+        span.textContent = real;
+    } else {
+        span.textContent = '••••••••';
+    }
+};
+
+// Copiar para clipboard
+window.copiarTexto = async function(texto, btn) {
+    try {
+        await navigator.clipboard.writeText(texto);
+        const original = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => { btn.textContent = original; }, 1200);
+    } catch (e) {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = texto;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = '✓';
+        setTimeout(() => { btn.textContent = 'Copiar'; }, 1200);
+    }
+};
 
 // Cancela edição de gasto pessoal (novo — chamado pelo botão Cancelar e ao resetar)
 window.cancelarEdicaoGastoPessoal = function() {
@@ -1027,11 +1091,10 @@ window.cancelarEdicaoGastoPessoal = function() {
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
     const desc = document.getElementById("descGastoPessoal").value.trim();
-    const valorInput = document.getElementById("valGastoPessoal").value.trim();
-    
-    const valor = valorInput === "" ? 0 : parseMoeda(valorInput);
-    const dataGasto = new Date().toISOString().split('T')[0]; 
-    
+    const link = document.getElementById("linkGastoPessoal").value.trim();
+    const login = document.getElementById("loginGastoPessoal").value.trim();
+    const senha = document.getElementById("senhaGastoPessoal").value.trim();
+
     const msg = document.getElementById("msgGastoPessoal");
     const btn = e.target.querySelector('button[type="submit"]');
 
@@ -1047,42 +1110,35 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     const estavaEditando = !!idEditandoGastoPessoal;
 
     try {
+        const payload = {
+            descricao: desc,
+            link: link || null,
+            login: login || null,
+            senha: senha || null
+        };
+
         if (estavaEditando) {
             const { error } = await supabaseClient.from('gastos_pessoais')
-                .update({ descricao: desc, valor: valor })
+                .update(payload)
                 .eq('id', idEditandoGastoPessoal);
             if (error) throw error;
             mostrarPopupSucesso("Anotação atualizada!");
         } else {
-            idEditandoGastoPessoal = null; 
-            
             const { error } = await supabaseClient.from('gastos_pessoais')
-                .insert([{ 
-                    user_id: usuarioLogado.id, 
-                    descricao: desc, 
-                    valor: valor, 
-                    data_gasto: dataGasto 
-                }]);
+                .insert([{ user_id: usuarioLogado.id, ...payload }]);
             if (error) throw error;
             mostrarPopupSucesso("Anotação salva!");
         }
 
-        // Limpa o formulário manualmente (mais garantido)
         document.getElementById("formGastoPessoal").reset();
         document.getElementById("msgGastoPessoal").textContent = "";
-        
-        // Restaura o botão
         btn.disabled = false;
         btn.textContent = "Adicionar";
-        
-        // Esconde botão cancelar se estiver visível
+
         const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
         if (btnCancelar) btnCancelar.style.display = "none";
 
-        // Reseta o ID de edição
         idEditandoGastoPessoal = null;
-
-        // Recarrega a lista
         carregarGastosPessoais();
 
     } catch (err) {
@@ -1092,15 +1148,16 @@ document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     }
 };
 
-window.editarGastoPessoal = function(id, desc, valor) {
-    idEditandoGastoPessoal = id;
-    document.getElementById("descGastoPessoal").value = desc;
-    document.getElementById("valGastoPessoal").value = valor.toString().replace('.', ',');
-    
+window.editarGastoPessoal = function(item) {
+    idEditandoGastoPessoal = item.id;
+    document.getElementById("descGastoPessoal").value = item.descricao || '';
+    document.getElementById("linkGastoPessoal").value = item.link || '';
+    document.getElementById("loginGastoPessoal").value = item.login || '';
+    document.getElementById("senhaGastoPessoal").value = item.senha || '';
+
     const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
     btn.textContent = "Salvar Alterações";
 
-    // Mostra botão Cancelar
     const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
     if (btnCancelar) btnCancelar.style.display = "block";
 
@@ -1108,7 +1165,7 @@ window.editarGastoPessoal = function(id, desc, valor) {
 };
 
 window.excluirGastoPessoal = async function(id) {
-    if (!confirm("Tem certeza que deseja excluir este gasto?")) return;
+    if (!confirm("Tem certeza que deseja excluir esta anotação?")) return;
     const { error } = await supabaseClient.from('gastos_pessoais').delete().eq('id', id);
     if (!error) carregarGastosPessoais();
 };

@@ -47,6 +47,44 @@ function formatarReal(v){
     return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
 }
 
+window.mostrarConfirmacao = function(mensagem, callbackAcao, isPagamento = false) {
+    const popup = document.getElementById('popupConfirmacao');
+    const icone = popup.querySelector('.popup-icone');
+    const titulo = popup.querySelector('.popup-titulo');
+    const btnConfirmar = document.getElementById('btnConfirmarAcao');
+    
+    document.getElementById('textoConfirmacao').innerHTML = mensagem;
+    
+    if (isPagamento) {
+        // Tema Verde (Sucesso / Pagamento)
+        icone.textContent = '✅';
+        icone.style.color = '#188038';
+        titulo.textContent = 'Confirmar';
+        titulo.style.color = '#188038';
+        btnConfirmar.textContent = 'Sim, foi paga!';
+        btnConfirmar.style.background = '#188038';
+    } else {
+        // Tema Vermelho (Alerta / Exclusão)
+        icone.textContent = '⚠️';
+        icone.style.color = '#b3261e';
+        titulo.textContent = 'Atenção';
+        titulo.style.color = '#b3261e';
+        btnConfirmar.textContent = 'Sim, tenho certeza';
+        btnConfirmar.style.background = '#b3261e';
+    }
+    
+    // Remove eventos antigos para não disparar a ação errada
+    btnConfirmar.onclick = null; 
+    
+    // Adiciona a nova ação
+    btnConfirmar.onclick = async () => {
+        fecharPopup('popupConfirmacao');
+        await callbackAcao();
+    };
+
+    popup.classList.add('ativo');
+};
+
 window.mudarAba = function(a) {
     document.getElementById('abaContas').style.display = 'none';
     document.getElementById('abaMetas').style.display = 'none';
@@ -467,7 +505,7 @@ if (i.pago) {
            h+=`<tr class="${c}" ${estiloLinha}>
                <td style="width: 45px; padding: 0; vertical-align: middle;">
     <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
-        <input type="checkbox" class="check-pago" style="background-color: ${i.pago ? '#188038' : (corCat ? corCat : '#b3261e')} !important;" ${i.pago?'checked':''} onchange="togglePagoConta(${i.id}, ${i.pago})">
+        <input type="checkbox" class="check-pago" style="background-color: ${i.pago ? '#188038' : (corCat ? corCat : '#b3261e')} !important;" ${i.pago?'checked':''} onclick="solicitarPagamento(event, ${i.id}, ${i.pago})">
     </div>
 </td>
                 <td style="padding: 6px 4px; vertical-align: middle;">
@@ -722,10 +760,22 @@ window.cancelarEdicaoConta = function() {
     fecharPopup('popupLancamento');
 };
 
-window.togglePagoConta = async function(id, status){
-    const check = document.querySelector(`input[onchange*="togglePagoConta(${id},"]`);
-    if(check) check.checked = !status;
+// 1. Função que intercepta o clique no checkbox
+window.solicitarPagamento = function(event, id, statusAtual) {
+    event.preventDefault(); 
 
+    const mensagem = statusAtual 
+        ? "Deseja desmarcar esta conta como paga?" 
+        : "Confirmar que esta conta já foi paga?";
+
+    // Passa o 'true' no final para ativar o tema verde!
+    mostrarConfirmacao(mensagem, async function() {
+        await togglePagoConta(id, statusAtual);
+    }, true); 
+};
+
+// 2. Função real de alteração no banco (agora chamada após a confirmação)
+window.togglePagoConta = async function(id, status) {
     const pagador = !status ? usuarioLogado.id : null; 
     
     await supabaseClient.from('lancamentos').update({
@@ -926,9 +976,10 @@ window.editarMeta = function(item) {
 };
 
 window.excluirMeta = async function(id) {
-    if(!confirm("Tem certeza que deseja excluir esta meta?")) return;
-    const { error } = await supabaseClient.from('metas').delete().eq('id', id);
-    if (!error) carregarMetas();
+    mostrarConfirmacao("Tem certeza que deseja excluir esta meta?", async function() {
+        const { error } = await supabaseClient.from('metas').delete().eq('id', id);
+        if (!error) carregarMetas();
+    });
 };
 
 let metaIdSelecionada = null;
@@ -1165,9 +1216,10 @@ window.editarGastoPessoal = function(item) {
 };
 
 window.excluirGastoPessoal = async function(id) {
-    if (!confirm("Tem certeza que deseja excluir esta anotação?")) return;
-    const { error } = await supabaseClient.from('gastos_pessoais').delete().eq('id', id);
-    if (!error) carregarGastosPessoais();
+    mostrarConfirmacao("Tem certeza que deseja excluir esta anotação do cofre?", async function() {
+        const { error } = await supabaseClient.from('gastos_pessoais').delete().eq('id', id);
+        if (!error) carregarGastosPessoais();
+    });
 };
 
 document.querySelectorAll('.popup-overlay').forEach(popup => {
@@ -1427,14 +1479,13 @@ window.visualizarNota = async function(caminho, tipo, descricao = '') {
 };
 
 window.excluirNota = async function(id) {
-    mostrarConfirmacao("Tem certeza que deseja excluir esta nota?", async function() {
+    mostrarConfirmacao("Tem certeza que deseja excluir esta nota/recibo?", async function() {
         const { data } = await supabaseClient.from('notas').select('arquivo_url').eq('id', id).single();
         if (data?.arquivo_url) {
-            // arquivo_url agora é o caminho puro (ex: "1234_abc.pdf")
             await supabaseClient.storage.from('notas').remove([data.arquivo_url]).catch(() => {});
         }
         await supabaseClient.from('notas').delete().eq('id', id);
-        carregarNotas();
+        carregarNotas(); // Atualiza a tela
     });
 };
 

@@ -1,32 +1,24 @@
 const SUPABASE_URL = 'https://zsphwqdqrvxozomvogrk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_s87sEdRzaBnha9yBhNfwVw_8cq-m3_1';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 let usuarioLogado = null, enviando = false, editandoContaId = null, editandoMetaId = null;
-let senhaMestraCofre = null; // Fica na memória, some se recarregar a página
+let senhaMestraCofre = null;
 let deslocamentoMes = 0;
 let timeoutPopup = null;
 let idEditandoGastoPessoal = null;
-let acaoPosDesbloqueio = null; // Guarda o que deve ser feito após desbloquear o cofre
-
+let acaoPosDesbloqueio = null; 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-// COLOQUE ISSO:
 let CORES_CATEGORIAS = {}; 
 const loginSenha=document.getElementById("loginSenha"),msgLogin=document.getElementById("mensagemLogin"),appPrincipal=document.getElementById("appPrincipal"),telaLogin=document.getElementById("telaLogin");
 const catConta=document.getElementById("catConta"),txtCatConta=document.getElementById("txtCatConta"),descConta=document.getElementById("descConta"),valConta=document.getElementById("valConta"),parcQtdConta=document.getElementById("parcQtdConta"),vencConta=document.getElementById("vencConta"),pagoConta=document.getElementById("pagoConta"),btnSalvarConta=document.getElementById("btnSalvarConta"),msgConta=document.getElementById("msgConta"),listaContas=document.getElementById("listaContas");
-
-// FUNÇÕES DE APOIO
-// Converte um arquivo (File) para Base64
 function arquivoParaBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]); // Pega só o conteúdo Base64
+        reader.onload = () => resolve(reader.result.split(',')[1]); 
         reader.onerror = reject;
         reader.readAsDataURL(file);
     });
 }
-
-// Converte Base64 para Blob (para visualizar a imagem/PDF)
 function base64ParaBlob(base64, tipo) {
     const byteCharacters = atob(base64);
     const byteNumbers = new Array(byteCharacters.length);
@@ -36,19 +28,15 @@ function base64ParaBlob(base64, tipo) {
     const byteArray = new Uint8Array(byteNumbers);
     return new Blob([byteArray], {type: tipo});
 }
-
 function criptografarComSenha(texto) {
     if (!texto || !senhaMestraCofre) return null;
     return CryptoJS.AES.encrypt(texto, senhaMestraCofre).toString();
 }
-
-// Função para descriptografar os dados com a senha mestra
 function descriptografarComSenha(texto) {
     if (!texto || !senhaMestraCofre) return "";
     try {
         const bytes = CryptoJS.AES.decrypt(texto, senhaMestraCofre);
         const original = bytes.toString(CryptoJS.enc.Utf8);
-        // Se a descriptografia falhar, o retorno fica vazio ou com erro
         return original || "Erro: Senha incorreta";
     } catch (e) {
         return "Erro: Senha incorreta";
@@ -62,17 +50,14 @@ function gerarUUID(){
         return v.toString(16);
     });
 }
-
 function parseMoeda(str){
     if(!str) return NaN;
     const limpo = String(str).trim().replace(/\./g,'').replace(',','.');
     return parseFloat(limpo);
 }
-
 function isoLocal(d){
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-
 function obterMesAno(d){
     const h = new Date();
     const a = new Date(h.getFullYear(), h.getMonth()+d, 1);
@@ -82,11 +67,9 @@ function obterMesAno(d){
         ultimoDia: isoLocal(new Date(a.getFullYear(), a.getMonth()+1, 0))
     };
 }
-
 function formatarReal(v){
     return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
 }
-
 window.desbloquearCofre = async function() {
     const senhaDigitada = document.getElementById('inputSenhaMestra').value;
     const msg = document.getElementById('msgSenhaMestra');
@@ -95,11 +78,8 @@ window.desbloquearCofre = async function() {
         msg.textContent = "Digite uma senha.";
         return;
     }
-
     senhaMestraCofre = senhaDigitada;
-    
     const { data } = await supabaseClient.from('gastos_pessoais').select('senha').limit(1);
-    
     if (data && data.length > 0 && data[0].senha) {
         const teste = descriptografarComSenha(data[0].senha);
         if (teste === "Erro: Senha incorreta") {
@@ -110,43 +90,31 @@ window.desbloquearCofre = async function() {
             return;
         }
     }
-
-    // Se passou, fecha o popup e carrega os dados do cofre
     fecharPopup('popupSenhaMestra');
-    
-    // Se o usuário estava tentando abrir um documento, executa a ação agora!
     if (acaoPosDesbloqueio) {
         acaoPosDesbloqueio();
-        acaoPosDesbloqueio = null; // Limpa a memória
+        acaoPosDesbloqueio = null; 
     } else {
-        // Se não, apenas carrega a lista de anotações normalmente
         carregarGastosPessoais();
     }
 };
-
 window.solicitarVisualizacaoCofre = function() {
     if (senhaMestraCofre) {
-        // Se já estiver desbloqueado, só carrega
         carregarGastosPessoais();
     } else {
-        // Se não, define que a ação pós-desbloqueio será carregar a lista
         acaoPosDesbloqueio = () => carregarGastosPessoais();
         document.getElementById('inputSenhaMestra').value = '';
         document.getElementById('msgSenhaMestra').textContent = '';
         document.getElementById('popupSenhaMestra').classList.add('ativo');
     }
 };
-
 window.mostrarConfirmacao = function(mensagem, callbackAcao, isPagamento = false) {
     const popup = document.getElementById('popupConfirmacao');
     const icone = popup.querySelector('.popup-icone');
     const titulo = popup.querySelector('.popup-titulo');
     const btnConfirmar = document.getElementById('btnConfirmarAcao');
-    
     document.getElementById('textoConfirmacao').innerHTML = mensagem;
-    
     if (isPagamento) {
-        // Tema Verde (Sucesso / Pagamento)
         icone.textContent = '✅';
         icone.style.color = '#188038';
         titulo.textContent = 'Confirmar';
@@ -154,7 +122,6 @@ window.mostrarConfirmacao = function(mensagem, callbackAcao, isPagamento = false
         btnConfirmar.textContent = 'Sim, foi paga!';
         btnConfirmar.style.background = '#188038';
     } else {
-        // Tema Vermelho (Alerta / Exclusão)
         icone.textContent = '⚠️';
         icone.style.color = '#b3261e';
         titulo.textContent = 'Atenção';
@@ -162,32 +129,24 @@ window.mostrarConfirmacao = function(mensagem, callbackAcao, isPagamento = false
         btnConfirmar.textContent = 'Sim, tenho certeza';
         btnConfirmar.style.background = '#b3261e';
     }
-    
-    // Remove eventos antigos para não disparar a ação errada
     btnConfirmar.onclick = null; 
-    
-    // Adiciona a nova ação
     btnConfirmar.onclick = async () => {
         fecharPopup('popupConfirmacao');
         await callbackAcao();
     };
-
     popup.classList.add('ativo');
 };
-
 window.mudarAba = function(a) {
     document.getElementById('abaContas').style.display = 'none';
     document.getElementById('abaMetas').style.display = 'none';
     document.getElementById('abaPessoais').style.display = 'none';
     document.getElementById('abaCompras').style.display = 'none';
     document.getElementById('abaNotas').style.display = 'none';
-
     document.getElementById('btnAbaContas').classList.remove('ativa');
     document.getElementById('btnAbaMetas').classList.remove('ativa');
     document.getElementById('btnAbaPessoais').classList.remove('ativa');
     document.getElementById('btnAbaCompras').classList.remove('ativa');
     document.getElementById('btnAbaNotas').classList.remove('ativa');
-
     if (a === 'contas') {
         document.getElementById('abaContas').style.display = 'block';
         document.getElementById('btnAbaContas').classList.add('ativa');
@@ -203,64 +162,53 @@ window.mudarAba = function(a) {
         acaoPosDesbloqueio = null; 
         document.getElementById('abaPessoais').style.display = 'block';
         document.getElementById('btnAbaPessoais').classList.add('ativa');
-        
-        // Em vez de abrir o popup da senha automaticamente, mostramos a mensagem e esperamos o clique no botão
-        document.getElementById('listaGastosPessoais').innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Clique no botão acima para visualizar suas credenciais.</div>';
-        
+        document.getElementById('listaGastosPessoais').innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Clique no botão acima para visualizar suas credenciais.</div>';       
     } else if (a === 'compras') {
         document.getElementById('abaCompras').style.display = 'block';
         document.getElementById('btnAbaCompras').classList.add('ativa');
         carregarCompras();
     }
 };
-
 window.alternarTipo = function() {
     const tipo = document.getElementById('tipoConta').value;
     const boxParcelas = document.getElementById('boxParcelas');
-    const labelValor = document.getElementById('labelValConta'); // Pega o texto do label
-
+    const labelValor = document.getElementById('labelValConta'); 
     if (tipo === 'fixo') {
         boxParcelas.style.display = 'none';
         document.getElementById('parcQtdConta').required = false;
-        labelValor.textContent = "Valor (R$)"; // Texto para conta fixa
+        labelValor.textContent = "Valor (R$)"; 
     } else {
         boxParcelas.style.display = 'block';
         document.getElementById('parcQtdConta').required = true;
-        labelValor.textContent = "Valor da Parcela (R$)"; // Texto para parcelado/à vista
+        labelValor.textContent = "Valor da Parcela (R$)"; 
     }
 };
-
 function atualizarPapelParedeMes(deslocamento){
     const hoje = new Date();
     let mesIndex = (hoje.getMonth() + deslocamento) % 12;
     if (mesIndex < 0) mesIndex += 12;
-    
     const barra = document.querySelector('.mes-nav');
     if (barra) {
-        // Cores equilibradas e elegantes
         const coresFundo = [
-            'linear-gradient(135deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%)', // Jan - Rosa pastel
-            'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', // Fev - Lilás
-            'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)', // Mar - Verde água/azul
-            'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)', // Abr - Pêssego/Roxo
-            'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', // Mai - Azul claro
-            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', // Jun - Pink
-            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', // Jul - Azul ciano
-            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', // Ago - Verde neon
-            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', // Set - Rosa/Amarelo
-            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', // Out - Turquesa/Roxo
-            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)', // Nov - Menta
-            'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)'  // Dez - Coral
+            'linear-gradient(135deg, #FF9A9E 0%, #FECFEF 99%, #FECFEF 100%)', 
+            'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)', 
+            'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)', 
+            'linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)',
+            'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', 
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', 
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', 
+            'linear-gradient(135deg, #30cfd0 0%, #330867 100%)', 
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+            'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)' 
         ];
-        
         barra.style.backgroundImage = coresFundo[mesIndex];
         barra.style.backgroundSize = '200% 200%';
         barra.style.animation = 'gradientShift 5s ease infinite';
     }
 }
-
 function mostrarPopupSucesso(t){document.getElementById("tituloPopup").textContent=t;clearTimeout(timeoutPopup);document.getElementById("popupSucesso").classList.add("ativo");timeoutPopup=setTimeout(()=>{document.getElementById("popupSucesso").classList.remove("ativo")},400)}
-
 function fecharPopup(id){
     document.getElementById(id).classList.remove("ativo");
     if (id === 'popupLancamento' && editandoContaId) {
@@ -273,7 +221,6 @@ function fecharPopup(id){
         document.getElementById('btnSalvarMeta').textContent = "Salvar Meta";
     }
 }
-
 window.abrirPopupLancamento = function(){
     if (!editandoContaId) {
         document.getElementById("formLancamento").reset();
@@ -283,7 +230,6 @@ window.abrirPopupLancamento = function(){
     }
     document.getElementById("popupLancamento").classList.add("ativo");
 };
-
 window.abrirPopupMeta = function(){
     if (!editandoMetaId) {
         document.getElementById("formMeta").reset();
@@ -292,23 +238,17 @@ window.abrirPopupMeta = function(){
     }
     document.getElementById("popupMeta").classList.add("ativo");
 };
-
 window.fazerLogin = async function(){
     const emailEscolhido = document.getElementById("loginUsuario").value; 
     const s = loginSenha.value;
     const btn = document.querySelector('#telaLogin button');
-    
     msgLogin.textContent = "";
     if(!s){ msgLogin.textContent="Digite a senha."; return; }
-    
-    // Feedback visual
     btn.disabled = true;
     const textoOriginal = btn.textContent;
     btn.textContent = "Entrando...";
-    
     try {
         let {data, error} = await supabaseClient.auth.signInWithPassword({email: emailEscolhido, password: s});
-        
         if(error){
             msgLogin.textContent="Senha incorreta.";
             console.log(error.message);
@@ -317,44 +257,37 @@ window.fazerLogin = async function(){
             iniciarApp(data.user);
         }
     } finally {
-        // Restaura o botão (se o login falhou; se deu certo, a tela já sumiu)
         btn.disabled = false;
         btn.textContent = textoOriginal;
     }
 };
-
 window.fazerLogout = async function(){
     try { await supabaseClient.auth.signOut(); } catch (e) {}
+    senhaMestraCofre = null;
+    window.senhasCofreMemoria = {};
+    acaoPosDesbloqueio = null;
+	    idEditandoGastoPessoal = null; 
     localStorage.removeItem('ultimoUsuario');
     appPrincipal.style.display="none";
     telaLogin.style.display="block";
     loginSenha.value="";
     msgLogin.textContent="";
 };
-
 async function iniciarApp(user){
     usuarioLogado = user;
     telaLogin.style.display = "none";
     appPrincipal.style.display = "block";
-
     const nome = user.email.split('@')[0]; 
     document.querySelector('header p').textContent = `Logado como: ${nome.charAt(0).toUpperCase() + nome.slice(1)}`;
-
-    // Renderiza a aba PRIMEIRO (com "Carregando...")
     mudarAba('contas');
-
-    // Depois dispara as cargas em paralelo
     atualizarPapelParedeMes(0);
     const hoje = isoLocal(new Date());
     document.getElementById('vencConta').value=hoje;
-
-    // await Promise.all para garantir que ambos rodem juntos (não em cascata)
     await Promise.all([
         carregarCategorias(),
         carregarContas()
     ]);
 }
-
 supabaseClient.auth.getSession().then(({data:{session}})=>{
     if(session) {
         iniciarApp(session.user);
@@ -364,23 +297,17 @@ supabaseClient.auth.getSession().then(({data:{session}})=>{
         if(ultimo) document.getElementById("loginUsuario").value = ultimo;
     }
 });
-
 window.abrirAlterarSenha=function(){document.getElementById("popupSenha").classList.add("ativo")};
 window.salvarNovaSenha=async function(){const n=document.getElementById("novaSenha").value,msg=document.getElementById("msgSenha");if(n.length<6){msg.textContent="Min. 6 caracteres.";return}const{error}=await supabaseClient.auth.updateUser({password:n});if(error){msg.textContent="Erro."}else{msg.style.color="#188038";msg.textContent="Alterada!";setTimeout(()=>{fecharPopup('popupSenha');msg.style.color="#b3261e"},2000)}};
-
 async function carregarCategorias(){
     const{data,error}=await supabaseClient.from('categorias').select('*').order('id');
     if(error)return;
-    
-    // Limpa e reconstrói a lista de cores baseada no banco de dados!
     CORES_CATEGORIAS = {}; 
     data.forEach(item => {
         if (item.cor) CORES_CATEGORIAS[item.nome] = item.cor;
     });
-
     catConta.innerHTML='<option value="">Selecione</option>';
     document.getElementById("listaCategoriasPopup").innerHTML = ''; 
-    
     data.forEach(item=>{
         const l=document.createElement("div");l.className="cat-item";
         l.innerHTML=`<div class="cat-nome">${item.nome}</div><div class="cat-desc">${item.descricao}</div>`;
@@ -399,12 +326,9 @@ async function carregarContas(){
     listaContas.innerHTML='<div class="ultimos-aviso">Carregando...</div>';
     const d=obterMesAno(deslocamentoMes);
     document.getElementById("mesTitulo").textContent=d.stringMesAno;
-    
     const dAnterior = obterMesAno(deslocamentoMes - 1);
-
     const hoje = new Date();
 	const ehPrimeiroDia = hoje.getDate() === 1;
-    // Só busca as contas do mês anterior se hoje for dia 1º
     const buscaAtrasadas = ehPrimeiroDia 
         ? supabaseClient
             .from('lancamentos')
@@ -413,34 +337,27 @@ async function carregarContas(){
             .lte('data_vencimento', dAnterior.ultimoDia)
             .eq('pago', false)
         : Promise.resolve({ data: [], error: null });
-
     const [resMes, resAtrasadas, resMoldes] = await Promise.all([
         supabaseClient.from('lancamentos').select('*, categorias(nome)').gte('data_vencimento', d.primeiroDia).lte('data_vencimento', d.ultimoDia).order('data_vencimento', { ascending: true }),
         buscaAtrasadas,
         supabaseClient.from('lancamentos').select('*').eq('parcelas', 'Mensal').gte('data_vencimento', dAnterior.primeiroDia).lte('data_vencimento', dAnterior.ultimoDia)
     ]);
-
     const contasMes = resMes.data || [];
     const contasAtrasadas = resAtrasadas.data || [];
     const moldes = resMoldes.data || [];
-
     if (resMes.error || resMoldes.error) {
         listaContas.innerHTML = '<div class="ultimos-aviso">Erro ao carregar.</div>';
         return;
     }
-
     const novasCriadas = [];
     if(moldes.length > 0){
-        // --- B2: deduplicar por grupo_parcelamento (não por descricao) ---
         const moldesUnicos = [...new Map(
             moldes
-                .filter(m => m.grupo_parcelamento) // só moldes válidos
+                .filter(m => m.grupo_parcelamento) 
                 .map(item => [item.grupo_parcelamento, item])
         ).values()];
-
         const paraCriar = [];
         const gruposMoldes = moldesUnicos.map(m => m.grupo_parcelamento);
-
         let existentesPorGrupo = {};
         if (gruposMoldes.length > 0) {
             const { data: existentes } = await supabaseClient
@@ -455,31 +372,23 @@ async function carregarContas(){
                 existentesPorGrupo[e.grupo_parcelamento].add(e.data_vencimento);
             });
         }
-
         for (let molde of moldesUnicos) {
             const jaExiste = contasMes.find(m =>
                 m.grupo_parcelamento === molde.grupo_parcelamento &&
                 m.parcelas === 'Mensal'
             );
             if (jaExiste) continue;
-
             const diaVenc = parseInt(molde.data_vencimento.split('-')[2]);
             const [anoMolde, mesMolde] = molde.data_vencimento.split('-').slice(0,2).map(Number);
             const [anoAlvo, mesAlvo] = d.primeiroDia.split('-').slice(0,2).map(Number);
-
             let cursorAno = anoMolde;
             let cursorMes = mesMolde + 1;
             if (cursorMes > 12) { cursorMes = 1; cursorAno++; }
-
             const setExistente = existentesPorGrupo[molde.grupo_parcelamento] || new Set();
-
                     while (cursorAno < anoAlvo || (cursorAno === anoAlvo && cursorMes <= mesAlvo)) {
-                // Bloqueio removido: agora cria os meses futuros sob demanda
-                
                 const ultimoDiaMes = new Date(cursorAno, cursorMes, 0).getDate();
                 const diaFinal = Math.min(diaVenc, ultimoDiaMes);
                 const dataVenc = `${cursorAno}-${String(cursorMes).padStart(2,'0')}-${String(diaFinal).padStart(2,'0')}`;
-
                 if (!setExistente.has(dataVenc)) {
                     paraCriar.push({
                         user_id: usuarioLogado.id,
@@ -492,12 +401,10 @@ async function carregarContas(){
                         grupo_parcelamento: molde.grupo_parcelamento
                     });
                 }
-
                 cursorMes++;
                 if (cursorMes > 12) { cursorMes = 1; cursorAno++; }
             }
         }
-
         if(paraCriar.length > 0){
             const { data: criadas, error: errNova } = await supabaseClient
                 .from('lancamentos')
@@ -506,73 +413,50 @@ async function carregarContas(){
             if(!errNova && criadas) novasCriadas.push(...criadas);
         }
     }
-
     let allData = [...contasAtrasadas, ...contasMes, ...novasCriadas];
     allData = [...new Map(allData.map(item => [item.id, item])).values()];
     allData.sort((a, b) => {
         if (a.pago !== b.pago) return a.pago ? 1 : -1; 
         return new Date(a.data_vencimento) - new Date(b.data_vencimento);
     });
-    
     let tp=0, tpe=0;
     allData.forEach(i=>{if(i.pago){tp+=parseFloat(i.valor)}else{tpe+=parseFloat(i.valor)}});
-    
     document.getElementById("totalPago").textContent=formatarReal(tp);
     document.getElementById("totalAPagar").textContent=formatarReal(tpe);
-    
-    // ==========================================
-    // NOVO: CÁLCULO E RENDERIZAÇÃO DO RESUMO POR CATEGORIA
-    // ==========================================
     const totaisPorCategoria = {};
-    const itensPorCategoria = {}; // NOVO: Guarda os itens para o popup
-    
-    // Soma apenas o que NÃO está pago
+    const itensPorCategoria = {}; 
     allData.forEach(i => {
         if (!i.pago) {
             const nomeCat = i.categorias?.nome;
-            
-            // Só soma se a categoria for ROSANA, CARLOS ou LEOCIR
             if (nomeCat && CORES_CATEGORIAS[nomeCat]) {
                 if (!totaisPorCategoria[nomeCat]) {
                     totaisPorCategoria[nomeCat] = 0;
-                    itensPorCategoria[nomeCat] = []; // Inicia a lista
+                    itensPorCategoria[nomeCat] = []; 
                 }
                 totaisPorCategoria[nomeCat] += parseFloat(i.valor);
-                itensPorCategoria[nomeCat].push(i); // Guarda o item na lista
+                itensPorCategoria[nomeCat].push(i);
             }
         }
     });
-
     const containerResumo = document.getElementById("resumoCategorias");
     if (containerResumo) {
-        containerResumo.innerHTML = ''; // Limpa antes de adicionar
-        
+        containerResumo.innerHTML = ''; 
         if (Object.keys(totaisPorCategoria).length === 0) {
             containerResumo.style.display = 'none';
         } else {
             containerResumo.style.display = 'flex';
-            
             for (const [nome, valor] of Object.entries(totaisPorCategoria)) {
                 const corCat = CORES_CATEGORIAS[nome];
-                
                 const tag = document.createElement('div');
                 tag.className = 'tag-resumo-cat';
                 tag.style.backgroundColor = corCat;
-                tag.style.cursor = 'pointer'; // Muda o mouse para "mãozinha" ao passar por cima
-                
-                // Adiciona a ação de clique!
+                tag.style.cursor = 'pointer';
                 tag.onclick = () => abrirDetalhesCategoria(nome, itensPorCategoria[nome], valor, corCat);
-                
-                tag.innerHTML = `<span>${nome}:</span> <span>${formatarReal(valor)}</span>`;
-                
+                tag.innerHTML = `<span>${nome}:</span> <span>${formatarReal(valor)}</span>`; 
                 containerResumo.appendChild(tag);
             }
         }
     }
-    // ==========================================
-    // FIM DO NOVO BLOCO
-    // ==========================================
-	
     if(allData.length===0){
         listaContas.innerHTML='<div class="ultimos-aviso">Nenhuma conta neste mês.</div>';
     } else {
@@ -580,7 +464,6 @@ async function carregarContas(){
         allData.forEach(i=>{
             const v=new Date(i.data_vencimento+'T00:00:00').toLocaleDateString('pt-BR');
             const c = i.pago ? 'linha-paga' : 'linha-pendente';
-            
 let tag = '';
 if (i.pago) {
  tag = `<span style="background:#188038; color:#fff; padding:1px 4px; border-radius:4px; font-size:9px; margin-left:4px; font-weight:bold; font-family:'Poppins', sans-serif;">PAGO</span>`;
@@ -589,16 +472,14 @@ if (i.pago) {
       tag = `<span style="background:#b3261e; color:#fff; padding:1px 4px; border-radius:4px; font-size:9px; margin-left:4px; font-weight:bold; font-family:'Poppins', sans-serif;">VENCIDA</span>`;
     }
 }
-
             const nomeCat = i.categorias?.nome;
             const corCat = CORES_CATEGORIAS[nomeCat]; 
    const estiloLinha = (!i.pago && corCat) ? `style="background-color: ${corCat}15 !important;"` : "";
           const estiloBorda = (!i.pago && corCat) ? `border-left: 12px solid ${corCat} !important;` : "";
-
            h+=`<tr class="${c}" ${estiloLinha}>
                <td style="width: 45px; padding: 0; vertical-align: middle;">
     <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
-        <input type="checkbox" class="check-pago" style="background-color: ${i.pago ? '#188038' : (corCat ? corCat : '#b3261e')} !important;" ${i.pago?'checked':''} onclick="solicitarPagamento(event, ${i.id}, ${i.pago})">
+        <input type="checkbox" class="check-pago" style="background-color: ${i.pago ? '#188038' : (corCat ? corCat : '#b3261e')} !important;" ${i.pago?'checked':''} onclick="solicitarPagamento(event, ${i.id}, ${i.pago}, '${i.descricao.replace(/'/g, "\\'")}', ${i.valor})">
     </div>
 </td>
                 <td style="padding: 6px 4px; vertical-align: middle;">
@@ -623,35 +504,23 @@ if (i.pago) {
 });
     }
 }
-
 document.getElementById("formLancamento").onsubmit=async(e)=>{
     e.preventDefault();if(enviando)return;
     const tipo = document.getElementById('tipoConta').value;
-    
     const v = parseMoeda(valConta.value);
     let q = parseInt(parcQtdConta.value) || 2;
-    
     if(isNaN(v)||v<=0 || catConta.value==="" || !vencConta.value){msgConta.textContent="Preencha os dados.";return}
-    
     enviando=true;btnSalvarConta.disabled=true;btnSalvarConta.textContent="Salvando...";
     try{
 if(editandoContaId) {
     const { data: itemAtual } = await supabaseClient.from('lancamentos')
         .select('*').eq('id', editandoContaId).single();
-    
     const grupoId = itemAtual.grupo_parcelamento || gerarUUID();
     const descBase = descConta.value.trim();
-
-    // ============================================================
-    // CASO 1: era fixo mensal (parcelas === 'Mensal')
-    // ============================================================
     if (itemAtual.parcelas === 'Mensal') {
-
         if (tipo === 'parcela') {
-            // Transformar mensal em parcelado: deleta o grupo inteiro e recria
             await supabaseClient.from('lancamentos')
                 .delete().eq('grupo_parcelamento', grupoId);
-
             const db = new Date(vencConta.value + 'T12:00:00');
             const novos = [];
             for (let i = 1; i <= q; i++) {
@@ -671,55 +540,35 @@ if(editandoContaId) {
             await supabaseClient.from('lancamentos').insert(novos);
             mostrarPopupSucesso("Transformado em parcelado!");
         } else {
-            // Continua fixo mensal: RECRIA TODO O GRUPO COM A NOVA DATA
-            // 1. Apaga o grupo inteiro antigo
             await supabaseClient.from('lancamentos')
                 .delete().eq('grupo_parcelamento', grupoId);
-
-            // 2. Calcula os novos meses (do atual até o próximo ano)
             const dataBase = new Date(vencConta.value + 'T12:00:00');
             const diaBase = dataBase.getDate();
             const novosMeses = [];
-            
-            // Vamos recriar os próximos 24 meses para frente (passados não são recriados)
-            // Se quiser mais meses, aumente o número 24 abaixo
             for (let i = 0; i < 24; i++) {
                 const dataAlvo = new Date(dataBase);
                 dataAlvo.setMonth(dataAlvo.getMonth() + i);
-                
-                // Ajusta caso o mês não tenha o mesmo dia (ex: 31 de fevereiro)
                 if (dataAlvo.getDate() !== diaBase) {
                     dataAlvo.setDate(0); 
                 }
-
                 novosMeses.push({
                     user_id: usuarioLogado.id,
                     categoria_id: parseInt(catConta.value),
                     descricao: descBase,
                     valor: v,
                     data_vencimento: dataAlvo.toISOString().split('T')[0],
-                    pago: (i === 0) ? pagoConta.checked : false, // Só o primeiro herda o "pago"
+                    pago: (i === 0) ? pagoConta.checked : false,
                     parcelas: 'Mensal',
                     grupo_parcelamento: grupoId
                 });
             }
-            
-            // 3. Insere todos os novos meses
             await supabaseClient.from('lancamentos').insert(novosMeses);
-
             mostrarPopupSucesso("Conta fixa atualizada! Novos meses gerados.");
         }
-
-    // ============================================================
-    // CASO 2: era parcelado (1/N, 2/N...)
-    // ============================================================
     } else {
-
         if (tipo === 'fixo') {
-            // Transformar parcelado em fixo mensal
             await supabaseClient.from('lancamentos')
                 .delete().eq('grupo_parcelamento', grupoId);
-
             await supabaseClient.from('lancamentos').insert([{
                 user_id: usuarioLogado.id,
                 categoria_id: parseInt(catConta.value),
@@ -732,24 +581,18 @@ if(editandoContaId) {
             }]);
             mostrarPopupSucesso("Transformado em conta fixa!");
         } else {
-            // Continua parcelado: preserva as datas originais de cada parcela
-            // NÃO recalcula data_vencimento de todas as parcelas
             const { data: grupo } = await supabaseClient.from('lancamentos')
                 .select('id, data_vencimento')
                 .eq('grupo_parcelamento', grupoId)
                 .order('data_vencimento', { ascending: true });
-
             for (let i = 0; i < grupo.length && i < q; i++) {
                 await supabaseClient.from('lancamentos').update({
                     categoria_id: parseInt(catConta.value),
                     descricao: `${descBase} (${i+1}/${q})`,
                     valor: v,
                     parcelas: `${i+1}/${q}`
-                    // ⚠️ data_vencimento NÃO é atualizado — preserva a original
                 }).eq('id', grupo[i].id);
             }
-
-            // Se aumentou a quantidade de parcelas, cria as novas a partir da última
             if (q > grupo.length) {
                 const ultimaData = grupo.length > 0
                     ? new Date(grupo[grupo.length - 1].data_vencimento + 'T12:00:00')
@@ -771,24 +614,18 @@ if(editandoContaId) {
                 }
                 await supabaseClient.from('lancamentos').insert(novos);
             }
-
-            // Se diminuiu, apaga as excedentes
             if (q < grupo.length) {
                 for (let i = q; i < grupo.length; i++) {
                     await supabaseClient.from('lancamentos').delete().eq('id', grupo[i].id);
                 }
             }
-
-            // Atualiza data e status de pagamento SOMENTE do item editado
             await supabaseClient.from('lancamentos').update({
                 data_vencimento: vencConta.value,
                 pago: pagoConta.checked
             }).eq('id', editandoContaId);
-
             mostrarPopupSucesso("Parcelas atualizadas!");
         }
     }
-
     cancelarEdicaoConta();
 }
  else {
@@ -819,7 +656,6 @@ if(editandoContaId) {
         btnSalvarConta.textContent=editandoContaId ? "Salvar Alterações" : "Registrar Conta";
     }
 };
-
 window.editarConta = function(item) {
     editandoContaId = item.id;
     catConta.value = item.categoria_id;
@@ -828,7 +664,6 @@ window.editarConta = function(item) {
     valConta.value = item.valor.toString().replace('.', ',');
     vencConta.value = item.data_vencimento;
     pagoConta.checked = item.pago;
-    
     if (item.parcelas === 'Mensal') {
         document.getElementById('tipoConta').value = 'fixo';
         parcQtdConta.value = 1;
@@ -841,7 +676,6 @@ window.editarConta = function(item) {
     document.getElementById('btnCancelarEdicao').style.display = 'block';
     abrirPopupLancamento();
 };
-
 window.cancelarEdicaoConta = function() {
     editandoContaId = null;
     document.getElementById("formLancamento").reset();
@@ -852,44 +686,34 @@ window.cancelarEdicaoConta = function() {
     alternarTipo();
     fecharPopup('popupLancamento');
 };
-
-// 1. Função que intercepta o clique no checkbox
-window.solicitarPagamento = function(event, id, statusAtual) {
+window.solicitarPagamento = function(event, id, statusAtual, descricao, valor) {
     event.preventDefault(); 
-
-    const mensagem = statusAtual 
-        ? "Deseja desmarcar esta conta como paga?" 
-        : "Confirmar que esta conta já foi paga?";
-
-    // Passa o 'true' no final para ativar o tema verde!
+    if (statusAtual) {
+        togglePagoConta(id, statusAtual);
+        return;
+    }
+    const valorFormatado = formatarReal(valor);
+    const mensagem = `Confirmar o pagamento da conta <strong>${descricao}</strong> no valor de <strong>${valorFormatado}</strong>?`;
     mostrarConfirmacao(mensagem, async function() {
         await togglePagoConta(id, statusAtual);
     }, true); 
 };
-
-// 2. Função real de alteração no banco (agora chamada após a confirmação)
 window.togglePagoConta = async function(id, status) {
     const pagador = !status ? usuarioLogado.id : null; 
-    
     await supabaseClient.from('lancamentos').update({
         pago: !status,
         pago_por: pagador
     }).eq('id', id);
-    
     carregarContas();
 };
-
 let idParaExcluir = null;
 let grupoParaExcluir = null;
 let isFixoParaExcluir = false;
-
 window.excluirGasto = function(id, grupo, isFixo){
     idParaExcluir = id;
     grupoParaExcluir = grupo;
     isFixoParaExcluir = isFixo;
-    
     const txt = document.getElementById('txtExcluir');
-    
     if (isFixo) {
         txt.innerHTML = "Você está prestes a excluir uma <strong>CONTA FIXA MENSAL</strong>.<br><br>Isso apagará este lançamento de <strong>TODOS OS MESES</strong> (passados e futuros).<br><br>Deseja continuar?";
     } else if (grupo && grupo !== 'undefined' && grupo !== null) {
@@ -897,18 +721,12 @@ window.excluirGasto = function(id, grupo, isFixo){
     } else {
         txt.innerHTML = "Tem certeza que deseja excluir este lançamento?";
     }
-    
     document.getElementById('popupExcluir').classList.add('ativo');
 };
-
 window.confirmarExclusao = async function(){
     fecharPopup('popupExcluir'); 
-    
     try {
         if (isFixoParaExcluir) {
-            // Conta fixa: preferir SEMPRE grupo_parcelamento.
-            // Fallback: casar descrição EXATA (trim) + parcelas='Mensal'
-            // para não apagar "Água mineral" quando o item é "Água".
             if (grupoParaExcluir && grupoParaExcluir !== 'undefined' && grupoParaExcluir !== null) {
                 await supabaseClient.from('lancamentos').delete().eq('grupo_parcelamento', grupoParaExcluir);
             } else {
@@ -935,60 +753,42 @@ window.confirmarExclusao = async function(){
         console.error(e);
         alert("Erro ao excluir no banco de dados. Tente novamente.");
     }
-    
     carregarContas(); 
 };
-
 document.getElementById("mesAnterior").onclick=()=>{deslocamentoMes--;carregarContas();atualizarPapelParedeMes(deslocamentoMes)};
 document.getElementById("mesProximo").onclick=()=>{deslocamentoMes++;carregarContas();atualizarPapelParedeMes(deslocamentoMes)};
-// ==========================================
-// METAS
-// ==========================================
 async function carregarMetas(){
     const listaMetas = document.getElementById('listaMetas');
     listaMetas.innerHTML='<div class="ultimos-aviso" style="grid-column:1/-1;">Carregando metas...</div>';
-    
     const { data, error } = await supabaseClient.from('metas').select('*').order('id', { ascending: false });
-    
     if(error){
         console.error(error);
         listaMetas.innerHTML='<div class="ultimos-aviso" style="color:#b3261e; grid-column:1/-1;">Erro ao carregar metas.</div>';
         return;
     }
-    
     if(data.length === 0){
         listaMetas.innerHTML='<div class="ultimos-aviso" style="grid-column:1/-1;">Nenhuma meta criada ainda.<br>Clique no + para sonhar!</div>';
     } else {
-        // Paleta de cores exclusivas para as metas
         const coresMetas = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
         let h = '';
-        
         data.forEach((m, index) => {
             const progresso = m.valor_guardado > 0 ? (m.valor_guardado / m.valor_total) * 100 : 0;
             const pct = Math.min(progresso, 100).toFixed(0);
             const falta = m.valor_total - m.valor_guardado;
             const corCard = coresMetas[index % coresMetas.length]; 
-            
-            // Define a imagem
 let imgHtml = '';
 if (m.imagem_url && m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i)) {
-    // É uma imagem direta
     imgHtml = `<img src="${m.imagem_url}" alt="${m.nome}" onclick="window.open('${m.imagem_url}', '_blank')" style="cursor:pointer; width: 100%; height: 100%; object-fit: cover;">`;
 } else if (m.imagem_url) {
-    // É um link de site (tem link, mas não é imagem)
     imgHtml = `
         <a href="${m.imagem_url}" target="_blank" rel="noopener" style="text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: linear-gradient(135deg, ${corCard}22, ${corCard}55); padding: 0 10px; box-sizing: border-box; cursor: pointer;">
            <span style="font-size: 10px; color: #142b42; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Acessar Link</span>
         </a>
     `;
 } else {
-    // Não tem nem imagem nem link: fundo liso e limpo (sem ícone nenhum)
     imgHtml = `<div style="width:100%; height:100%; background: linear-gradient(135deg, ${corCard}22, ${corCard}55);"></div>`;
 }
-            
-            // Define a cor do texto da porcentagem (se passou de 50%, fica branco pra ler melhor)
             const corTextoPct = parseFloat(pct) > 50 ? '#fff' : '#64748b';
-            
             h += `
             <div class="card-meta">
                 <div class="meta-img-container">
@@ -998,9 +798,7 @@ if (m.imagem_url && m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i)) 
                         <button onclick='excluirMeta(${m.id})' title="Excluir">🗑️</button>
                     </div>
                 </div>
-
                 <div class="meta-titulo">${m.nome}</div>
-
                 <div class="meta-conteudo">
                     <div class="meta-valores">
                         <div>
@@ -1012,7 +810,6 @@ if (m.imagem_url && m.imagem_url.match(/\.(jpeg|jpg|gif|png|webp|svg)($|\?)/i)) 
                             <strong>${formatarReal(falta > 0 ? falta : 0)}</strong>
                         </div>
                     </div>
-                    
                     <div class="barra-progresso-container">
                         <div class="barra-progresso-preenchida" style="width: ${pct}%; background: ${corCard};"></div>
                         <div class="porcentagem-texto" style="color: ${corTextoPct};">${pct}%</div>
@@ -1030,13 +827,10 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
     const nome = document.getElementById('nomeMeta').value.trim();
     const valorTotal = parseMoeda(document.getElementById('valorMeta').value);
     const imagem = document.getElementById('imagemMeta').value.trim();
-    
     if(!nome || isNaN(valorTotal) || valorTotal <= 0){document.getElementById('msgMeta').textContent="Preencha o nome e o valor corretamente.";return}
-    
     const btn = document.getElementById('btnSalvarMeta');
     btn.disabled = true; btn.textContent = "Salvando...";
     const idEdicao = editandoMetaId;
-    
     try {
         if (idEdicao) {
             const { error } = await supabaseClient.from('metas').update({nome: nome,valor_total: valorTotal,imagem_url: imagem}).eq('id', idEdicao);
@@ -1058,7 +852,6 @@ document.getElementById("formMeta").onsubmit=async(e)=>{
         btn.textContent = idEdicao ? "Salvar Alterações" : "Salvar Meta";
     }
 };
-
 window.editarMeta = function(item) {
     editandoMetaId = item.id;
     document.getElementById('nomeMeta').value = item.nome;
@@ -1067,14 +860,12 @@ window.editarMeta = function(item) {
     document.getElementById('btnSalvarMeta').textContent = "Salvar Alterações";
     abrirPopupMeta();
 };
-
 window.excluirMeta = async function(id) {
     mostrarConfirmacao("Tem certeza que deseja excluir esta meta?", async function() {
         const { error } = await supabaseClient.from('metas').delete().eq('id', id);
         if (!error) carregarMetas();
     });
 };
-
 let metaIdSelecionada = null;
 window.abrirPopupGuardar = function(id, nome){
     metaIdSelecionada = id;
@@ -1083,17 +874,13 @@ window.abrirPopupGuardar = function(id, nome){
     document.querySelector('#popupGuardar h2').textContent = `Guardar para: ${nome}`;
     document.getElementById('popupGuardar').classList.add("ativo");
 }
-
 window.adicionarValorMeta = async function(){
     const valorAdd = parseMoeda(document.getElementById('valorGuardado').value);
     if(isNaN(valorAdd) || valorAdd <= 0){document.getElementById('msgGuardar').textContent="Insira um valor válido.";return}
-    
     const { data: meta, error: err1 } = await supabaseClient.from('metas').select('valor_guardado').eq('id', metaIdSelecionada).single();
     if(err1) return;
-    
     const novoValor = parseFloat(meta.valor_guardado) + valorAdd;
     const { error: err2 } = await supabaseClient.from('metas').update({ valor_guardado: novoValor }).eq('id', metaIdSelecionada);
-    
     if(!err2){
         fecharPopup('popupGuardar');
         carregarMetas();
@@ -1101,57 +888,39 @@ window.adicionarValorMeta = async function(){
         document.getElementById('msgGuardar').textContent="Erro ao salvar.";
     }
 };
-
-// ==========================================
-// GASTOS PESSOAIS
-// ==========================================
 async function carregarGastosPessoais() {
     const lista = document.getElementById('listaGastosPessoais');
     lista.innerHTML = '<div class="ultimos-aviso">Carregando...</div>';
-
     const { data, error } = await supabaseClient
         .from('gastos_pessoais')
         .select('*')
         .order('id', { ascending: false });
-
     if (error) {
         console.error("Erro no Supabase:", error);
         lista.innerHTML = '<div class="ultimos-aviso">Erro ao carregar.</div>';
         return;
     }
-
     if (!data || data.length === 0) {
         lista.innerHTML = '<div class="ultimos-aviso" style="text-align:center; font-size:12px; color:#64748b; padding: 20px 0;">Nenhuma anotação ainda.</div>';
         return;
     }
-
     const coresBloco = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
-
 let html = '';
-// Objeto para guardar as senhas na memória (seguro contra inspeção de HTML)
 window.senhasCofreMemoria = window.senhasCofreMemoria || {};
-
 data.forEach((gasto) => {
     const linkReal = gasto.link ? descriptografarComSenha(gasto.link) : '';
     const loginReal = gasto.login ? descriptografarComSenha(gasto.login) : '';
     const senhaReal = gasto.senha ? descriptografarComSenha(gasto.senha) : '';
-
-    // Guarda a senha real na memória do app usando o ID como chave
     window.senhasCofreMemoria[gasto.id] = senhaReal;
-
     const cor = coresBloco[gasto.id % coresBloco.length];
     const descEscapada = (gasto.descricao || '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    // Usa linkReal no HTML
     const linkHtml = linkReal
         ? `<div class="anot-linha">
              <strong>Link:</strong>
              <a class="anot-link" href="${linkReal}" target="_blank" rel="noopener">${linkReal}</a>
            </div>`
         : '';
-
-    // Usa loginReal no HTML
     const loginHtml = loginReal
         ? `<div class="anot-linha">
              <strong>Login:</strong>
@@ -1159,8 +928,6 @@ data.forEach((gasto) => {
              <button class="btn-copiar" onclick="copiarTextoMemoria(${gasto.id}, 'login', this)">Copiar</button>
            </div>`
         : '';
-
-    // Usa senhaReal no HTML (mas não expõe ela no código fonte da página)
     const senhaHtml = senhaReal
         ? `<div class="anot-linha">
              <strong>Senha:</strong>
@@ -1169,7 +936,6 @@ data.forEach((gasto) => {
              <button class="btn-copiar" onclick="toggleSenha(${gasto.id}, this)">👁</button>
            </div>`
         : '';
-
     html += `
     <div class="bloco-anotacao" style="border-left-color: ${cor};"
          data-id="${gasto.id}">
@@ -1183,14 +949,10 @@ data.forEach((gasto) => {
         </div>
     </div>`;
 });
-
 lista.innerHTML = html;
-
-    // bind dos botões
     lista.querySelectorAll('.bloco-anotacao').forEach(bloco => {
         const id = bloco.getAttribute('data-id');
         const item = data.find(x => String(x.id) === String(id));
-
         bloco.querySelector('.btn-editar-bloco').addEventListener('click', () => {
             editarGastoPessoal(item);
         });
@@ -1199,84 +961,85 @@ lista.innerHTML = html;
         });
     });
 }
-
-// Mostrar/ocultar senha
-window.toggleSenha = function(btn) {
-    const span = btn.parentElement.querySelector('.senha-valor');
+window.toggleSenha = function(id, btn) {
+    const span = document.getElementById(`senha-exibir-${id}`);
     if (!span) return;
-    const real = span.getAttribute('data-senha');
+    const senhaReal = window.senhasCofreMemoria[id];
     if (span.textContent === '••••••••') {
-        span.textContent = real;
+        span.textContent = senhaReal;
     } else {
         span.textContent = '••••••••';
     }
 };
+window.copiarTextoMemoria = async function(id, tipo, btn) {
+    let textoParaCopiar = '';
+    
+    if (tipo === 'senha') {
+        textoParaCopiar = window.senhasCofreMemoria[id];
+    } else if (tipo === 'login') {
+        textoParaCopiar = btn.parentElement.querySelector('span').textContent; 
+    }
 
-// Copiar para clipboard
-window.copiarTexto = async function(texto, btn) {
+    if (!textoParaCopiar) return;
+
     try {
-        await navigator.clipboard.writeText(texto);
+        await navigator.clipboard.writeText(textoParaCopiar);
         const original = btn.textContent;
         btn.textContent = '✓';
         setTimeout(() => { btn.textContent = original; }, 1200);
     } catch (e) {
-        // fallback
         const ta = document.createElement('textarea');
-        ta.value = texto;
+        ta.value = textoParaCopiar;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
+        const original = btn.textContent;
         btn.textContent = '✓';
-        setTimeout(() => { btn.textContent = 'Copiar'; }, 1200);
+        setTimeout(() => { btn.textContent = original; }, 1200);
     }
 };
-
-// Cancela edição de gasto pessoal (novo — chamado pelo botão Cancelar e ao resetar)
 window.cancelarEdicaoGastoPessoal = function() {
     idEditandoGastoPessoal = null;
     document.getElementById("formGastoPessoal").reset();
     document.getElementById("msgGastoPessoal").textContent = "";
-
     const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
     btn.textContent = "Adicionar";
-
     const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
     if (btnCancelar) btnCancelar.style.display = "none";
 };
-
 document.getElementById("formGastoPessoal").onsubmit = async (e) => {
     e.preventDefault();
-    
-    // Se o cofre estiver trancado, intercepta o envio e pede a senha
     if (!senhaMestraCofre) {
-        // Salva temporariamente os dados para não perder o que foi digitado
-        // (Você pode simplesmente pedir a senha. Após desbloquear, o usuário clica em salvar de novo)
         acaoPosDesbloqueio = () => document.getElementById("formGastoPessoal").requestSubmit();
         document.getElementById('inputSenhaMestra').value = '';
         document.getElementById('msgSenhaMestra').textContent = '';
         document.getElementById('popupSenhaMestra').classList.add('ativo');
         return;
     }
-
-    // ... restante do código do onsubmit (const desc = ...)
-
+    const desc = document.getElementById("descGastoPessoal").value.trim();
+    const link = document.getElementById("linkGastoPessoal").value.trim();
+    const login = document.getElementById("loginGastoPessoal").value.trim();
+    const senha = document.getElementById("senhaGastoPessoal").value.trim();
+    const msg = document.getElementById("msgGastoPessoal");
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (!desc) {
+        msg.textContent = "Preencha a descrição.";
+        return;
+    }
     msg.textContent = "";
     btn.disabled = true;
     btn.textContent = "Salvando...";
-
     const estavaEditando = !!idEditandoGastoPessoal;
-
     try {
-const payload = {
-    descricao: desc, // A descrição pode ficar em texto puro se quiser
-    link: link ? criptografarComSenha(link) : null,
-    login: login ? criptografarComSenha(login) : null,
-    senha: senha ? criptografarComSenha(senha) : null,
-    valor: 0,
-    data_gasto: new Date().toISOString().split('T')[0]
-};
-
+        const payload = {
+            descricao: desc,
+            link: link ? criptografarComSenha(link) : null,
+            login: login ? criptografarComSenha(login) : null,
+            senha: senha ? criptografarComSenha(senha) : null,
+            valor: 0,
+            data_gasto: new Date().toISOString().split('T')[0]
+        };
         if (estavaEditando) {
             const { error } = await supabaseClient.from('gastos_pessoais')
                 .update(payload)
@@ -1289,84 +1052,62 @@ const payload = {
             if (error) throw error;
             mostrarPopupSucesso("Anotação salva!");
         }
-
         document.getElementById("formGastoPessoal").reset();
         document.getElementById("msgGastoPessoal").textContent = "";
         btn.disabled = false;
         btn.textContent = "Adicionar";
-
         const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
         if (btnCancelar) btnCancelar.style.display = "none";
-
         idEditandoGastoPessoal = null;
         carregarGastosPessoais();
-
     } catch (err) {
         msg.textContent = "Erro: " + err.message;
         btn.disabled = false;
         btn.textContent = estavaEditando ? "Salvar Alterações" : "Adicionar";
     }
 };
-
 window.editarGastoPessoal = function(item) {
     idEditandoGastoPessoal = item.id;
     document.getElementById("descGastoPessoal").value = item.descricao || '';
    document.getElementById("linkGastoPessoal").value = item.link ? descriptografarComSenha(item.link) : '';
 document.getElementById("loginGastoPessoal").value = item.login ? descriptografarComSenha(item.login) : '';
 document.getElementById("senhaGastoPessoal").value = item.senha ? descriptografarComSenha(item.senha) : '';
-
     const btn = document.querySelector('#formGastoPessoal button[type="submit"]');
     btn.textContent = "Salvar Alterações";
-
     const btnCancelar = document.getElementById("btnCancelarGastoPessoal");
     if (btnCancelar) btnCancelar.style.display = "block";
-
     document.getElementById("descGastoPessoal").focus();
 };
-
 window.excluirGastoPessoal = async function(id) {
     mostrarConfirmacao("Tem certeza que deseja excluir esta anotação do cofre?", async function() {
         const { error } = await supabaseClient.from('gastos_pessoais').delete().eq('id', id);
         if (!error) carregarGastosPessoais();
     });
 };
-
 document.querySelectorAll('.popup-overlay').forEach(popup => {
     popup.addEventListener('click', function(e) {
         if (e.target === this) fecharPopup(this.id);
     });
 });
-
-// ==========================================
-// COMPRAS E ESTOQUE (CHECKLIST DE MERCADO)
-// ==========================================
 document.getElementById("formCompra").onsubmit = async (e) => {
     e.preventDefault();
     const nome = document.getElementById('nomeCompra').value.trim();
-    // Agora pega o texto exato (ex: "1 kg")
     const qtd = document.getElementById('qtdCompra').value.trim(); 
-
     if (!nome || !qtd) return;
-
     const btn = e.target.querySelector('button[type="submit"]');
     const textoOriginal = btn.textContent;
-    
     btn.textContent = "Enviando...";
     btn.disabled = true;
-
     try {
         const { error } = await supabaseClient.from('compras').insert([{
             nome: nome, 
             quantidade: qtd, 
             status: 'comprar'
         }]);
-
         if (error) throw error;
-
         document.getElementById('nomeCompra').value = '';
         document.getElementById('qtdCompra').value = '1';
         carregarCompras();
-
     } catch (err) {
         alert("Erro: " + err.message);
     } finally {
@@ -1374,39 +1115,26 @@ document.getElementById("formCompra").onsubmit = async (e) => {
         btn.disabled = false;
     }
 };
-
-// ==========================================
-// COMPRAS E ESTOQUE (CHECKLIST DE MERCADO)
-// ==========================================
 async function carregarCompras() {
     const listaComprar = document.getElementById('listaParaComprar');
     const listaEstoque = document.getElementById('listaEstoque');
     listaComprar.innerHTML = 'Carregando...';
     listaEstoque.innerHTML = 'Carregando...';
-
-    // 1. Limpa o histórico com mais de 30 dias automaticamente
     const dataLimite = new Date();
     dataLimite.setDate(dataLimite.getDate() - 30);
     const dataLimiteStr = dataLimite.toISOString();
-    
     await supabaseClient
         .from('compras')
         .delete()
         .eq('status', 'estoque')
         .lt('data_compra', dataLimiteStr);
-
-    // 2. Busca os itens
     const { data, error } = await supabaseClient.from('compras').select('*');
     if (error) {
         listaComprar.innerHTML = 'Erro ao carregar.';
         return;
     }
-
     const paraComprar = data.filter(item => item.status === 'comprar').sort((a,b) => a.nome.localeCompare(b.nome));
-    // No histórico, os mais recentes ficam em cima
     const emEstoque = data.filter(item => item.status === 'estoque').sort((a,b) => new Date(b.data_compra || 0) - new Date(a.data_compra || 0));
-
-    // --- RENDERIZA LISTA PARA COMPRAR ---
     if (paraComprar.length === 0) {
         listaComprar.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nada para comprar no momento.</div>';
     } else {
@@ -1424,14 +1152,11 @@ async function carregarCompras() {
         });
         listaComprar.innerHTML = h + `</tbody></table>`;
     }
-
-    // --- RENDERIZA HISTÓRICO ---
     if (emEstoque.length === 0) {
         listaEstoque.innerHTML = '<div class="ultimos-aviso" style="font-size:12px; color:#64748b;">Nenhum item comprado nos últimos 30 dias.</div>';
     } else {
         let h = `<table class="tabela-ultimos"><tbody>`;
         emEstoque.forEach(item => {
-            // BLINDAGEM: Se a data for inválida ou nula, mostra um aviso
             let dataTexto = "Data não registrada";
             if (item.data_compra) {
                 const dataObj = new Date(item.data_compra);
@@ -1441,7 +1166,6 @@ async function carregarCompras() {
                     dataTexto = `Comprado em: ${dataFormatada} às ${horaFormatada}`;
                 }
             }
-
             h += `<tr class="linha-paga" style="opacity: 0.8;">
                 <td style="width:30px;text-align:center">
                     <input type="checkbox" class="check-pago" checked disabled>
@@ -1457,15 +1181,10 @@ async function carregarCompras() {
         listaEstoque.innerHTML = h + `</tbody></table>`;
     }
 }
-
 window.marcarComprado = async function(id) {
-    // BLINDAGEM: Evita que a página pisque se o usuário clicar várias vezes rápido
     const check = document.querySelector(`input[onchange*="marcarComprado(${id})"]`);
     if (check) check.disabled = true;
-
-    // Pega a data e hora atual no fuso horário local, formatada corretamente para o Supabase
     const agora = new Date().toISOString();
-    
     const { error } = await supabaseClient
         .from('compras')
         .update({ 
@@ -1473,110 +1192,74 @@ window.marcarComprado = async function(id) {
             data_compra: agora
         })
         .eq('id', id);
-    
     if (error) {
         console.error("Erro ao marcar como comprado:", error);
         alert("Erro ao salvar no banco. Verifique se a coluna 'data_compra' existe.");
         if (check) check.disabled = false; // Libera o botão se der erro
         return;
     }
-    
     carregarCompras();
 };
-// ==========================================
-// NOTAS E RECIBOS
-// ==========================================
 window.abrirPopupNota = function() {
     document.getElementById('formNota').reset();
     document.getElementById('msgNota').textContent = '';
     document.getElementById('popupNota').classList.add('ativo');
 };
-
 async function carregarNotas() {
     const lista = document.getElementById('listaNotas');
     lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Carregando...</div>';
-
     const { data, error } = await supabaseClient
         .from('notas')
         .select('*')
         .order('criado_em', { ascending: false });
-
     if (error) {
         lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Erro ao carregar.</div>';
         return;
     }
-
     if (!data || data.length === 0) {
         lista.innerHTML = '<div class="ultimos-aviso" style="grid-column:1/-1;">Nenhuma nota ou recibo salvo.</div>';
         return;
     }
-
-    // Gera todas as signed URLs em paralelo (mais rápido que em série)
-    const comUrls = await Promise.all(data.map(async (n) => {
-        const { data: signed, error: signErr } = await supabaseClient.storage
-            .from('notas')
-            .createSignedUrl(n.arquivo_url, 3600); // 1 hora
-        return { ...n, _urlExibir: signErr ? '' : signed.signedUrl };
-    }));
-
     let h = '';
-    comUrls.forEach(n => {
+    data.forEach(n => {
         const isPdf = n.tipo_arquivo === 'pdf';
-        
-        // A imagem/PDF agora tem altura fixa de 120px, deixando espaço para o título embaixo
-        // Em vez de tentar carregar a imagem com a Signed URL, mostramos um ícone bonito
-const preview = isPdf
-    ? `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">📄</div>`
-    : `<div style="width:100%; height:120px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; font-size:36px;">🖼️</div>`;
-
         const descSegura = n.descricao.replace(/'/g, "\\'");
-
+        const preview = isPdf
+            ? `<div style="width:100%; height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#fef2f2; color:#b3261e;">
+                 <span style="font-size:36px;">📄</span>
+                 <span style="font-size:10px; font-weight:bold; margin-top:4px;">PDF</span>
+               </div>`
+            : `<div style="width:100%; height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#eff6ff; color:#2563eb;">
+                 <span style="font-size:36px;">🖼️</span>
+                 <span style="font-size:10px; font-weight:bold; margin-top:4px;">IMAGEM</span>
+               </div>`;
         h += `
         <div class="card-nota" style="position:relative; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1); cursor:pointer; display:flex; flex-direction:column;"
              onclick="visualizarNota('${n.arquivo_url}', '${n.tipo_arquivo}', '${descSegura}')">
-            
-            <!-- Imagem/PDF -->
             ${preview}
-            
-            <!-- Título fixo abaixo da imagem -->
             <div style="padding:8px; font-size:12px; color:#142b42; font-weight:bold; text-align:center; line-height:1.2; word-break:break-word; background:#f8fafc; border-top:1px solid #e2e8f0; flex:1; display:flex; align-items:center; justify-content:center;">
                 ${n.descricao}
             </div>
-
-            <!-- Botão Excluir -->
             <button onclick="event.stopPropagation(); excluirNota(${n.id})"
                     style="position:absolute; top:4px; right:4px; width:24px; height:24px; border-radius:50%; background:rgba(179,38,30,0.9); color:#fff; border:none; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; min-height:auto; padding:0; margin:0; z-index:10;">✕</button>
         </div>`;
     });
     lista.innerHTML = h;
 }
-
 window.visualizarNota = async function(caminho, tipo, descricao = '') {
     if (!senhaMestraCofre) {
-        // Guarda a ação para abrir o documento depois de desbloquear
         acaoPosDesbloqueio = () => visualizarNota(caminho, tipo, descricao); 
-        
-        // Abre a janela verde (Senha Mestra) diretamente
         document.getElementById('inputSenhaMestra').value = '';
         document.getElementById('msgSenhaMestra').textContent = '';
         document.getElementById('popupSenhaMestra').classList.add('ativo'); 
-        
         return;
     }
-// ... restante do código
     try {
-        // 1. Baixa o arquivo criptografado do Storage
         const { data: blobData, error: downErr } = await supabaseClient.storage
             .from('notas')
             .download(caminho);
-            
         if (downErr) throw downErr;
-
-        // 2. Lê o conteúdo como texto
         const textoCriptografado = await blobData.text();
-
-        // 3. Descriptografa
-             // 3. Descriptografa (com proteção contra arquivos antigos)
         let base64Original = "";
         try {
             const bytes = CryptoJS.AES.decrypt(textoCriptografado, senhaMestraCofre);
@@ -1590,17 +1273,12 @@ window.visualizarNota = async function(caminho, tipo, descricao = '') {
             mostrarConfirmacao("Não foi possível abrir o arquivo. A Senha Mestra está incorreta.", function() {});
             return;
         }
-
-        // 4. Transforma de volta em Blob (Imagem ou PDF) e cria a URL
         const tipoMime = tipo === 'pdf' ? 'application/pdf' : 'image/jpeg';
         const blobOriginal = base64ParaBlob(base64Original, tipoMime);
         const urlExibir = URL.createObjectURL(blobOriginal);
-
-        // 5. Mostra no popup (mesma lógica que você já tinha)
         const imgElement = document.getElementById('imgVisualizarNota');
         const iframeElement = document.getElementById('pdfVisualizarNota');
         document.getElementById('tituloVisualizarNota').textContent = descricao;
-
         if (tipo === 'pdf') {
             imgElement.style.display = 'none';
             imgElement.src = '';
@@ -1612,15 +1290,12 @@ window.visualizarNota = async function(caminho, tipo, descricao = '') {
             imgElement.src = urlExibir;
             imgElement.style.display = 'block';
         }
-        
         document.getElementById('popupVisualizarNota').classList.add('ativo');
-
-    } catch (err) {
+      } catch (err) {
         console.error(err);
-        alert("Erro ao abrir o documento: " + err.message);
+        mostrarConfirmacao("Erro ao abrir o documento. Verifique se o arquivo não foi corrompido.", function() {});
     }
 };
-
 window.excluirNota = async function(id) {
     mostrarConfirmacao("Tem certeza que deseja excluir esta nota/recibo?", async function() {
         const { data } = await supabaseClient.from('notas').select('arquivo_url').eq('id', id).single();
@@ -1628,10 +1303,9 @@ window.excluirNota = async function(id) {
             await supabaseClient.storage.from('notas').remove([data.arquivo_url]).catch(() => {});
         }
         await supabaseClient.from('notas').delete().eq('id', id);
-        carregarNotas(); // Atualiza a tela
+        carregarNotas();
     });
 };
-
 document.getElementById("formNota").onsubmit = async (e) => {
     e.preventDefault();
     const desc = document.getElementById('descNota').value.trim();
@@ -1639,13 +1313,10 @@ document.getElementById("formNota").onsubmit = async (e) => {
     const file = fileInput.files[0];
     const msg = document.getElementById('msgNota');
     const btn = document.getElementById('btnSalvarNota');
-
     if (!desc || !file) {
         msg.textContent = "Preencha descrição e selecione um arquivo.";
         return;
     }
-
-    // Validação (do Bloco C original, aplicada aqui)
     const tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!tiposPermitidos.includes(file.type)) {
         msg.textContent = "Formato inválido. Use JPG, PNG, WEBP ou PDF.";
@@ -1655,53 +1326,38 @@ document.getElementById("formNota").onsubmit = async (e) => {
         msg.textContent = "Arquivo muito grande (máx. 10MB).";
         return;
     }
-
+    if (!senhaMestraCofre) {
+        acaoPosDesbloqueio = () => document.getElementById("formNota").requestSubmit();
+        document.getElementById('inputSenhaMestra').value = '';
+        document.getElementById('msgSenhaMestra').textContent = '';
+        document.getElementById('popupSenhaMestra').classList.add('ativo');
+        msg.textContent = '';
+        return;
+    }
     msg.textContent = '';
     btn.disabled = true;
     btn.textContent = 'Enviando...';
-
-    if (!senhaMestraCofre) {
-        msg.textContent = "Desbloqueie o Cofre primeiro para usar a mesma senha nos documentos.";
-        btn.disabled = false;
-        btn.textContent = 'Salvar';
-        return;
-    }
-
     try {
-        // 1. Lê o arquivo e converte para Base64
         const base64Original = await arquivoParaBase64(file);
-        
-        // 2. Criptografa o texto Base64 com a Senha Mestra
         const base64Criptografado = CryptoJS.AES.encrypt(base64Original, senhaMestraCofre).toString();
-        
-        // 3. Transforma o texto criptografado de volta em um arquivo (Blob) para enviar
         const blobCriptografado = new Blob([base64Criptografado], { type: 'text/plain' });
-        
-        // 4. O nome do arquivo vai ser sempre .txt porque agora é um texto criptografado
         const nomeArquivo = `${Date.now()}_${Math.random().toString(36).slice(2)}.txt`;
-
         const { error: upErr } = await supabaseClient.storage
             .from('notas')
             .upload(nomeArquivo, blobCriptografado, { contentType: 'text/plain' });
-
         if (upErr) throw new Error("Erro no upload: " + upErr.message);
-
         const tipo = file.type === 'application/pdf' ? 'pdf' : 'imagem';
-
         const { error: dbErr } = await supabaseClient.from('notas').insert([{
             user_id: usuarioLogado.id,
             descricao: desc,
             arquivo_url: nomeArquivo,
-            tipo_arquivo: tipo // Guardamos o tipo original para saber como exibir depois
+            tipo_arquivo: tipo
         }]);
-
         if (dbErr) throw dbErr;
-
         document.getElementById('formNota').reset();
         fecharPopup('popupNota');
         carregarNotas();
         mostrarPopupSucesso("Documento salvo e criptografado!");
-
     } catch (err) {
         msg.textContent = "Erro: " + err.message;
     } finally {
@@ -1709,14 +1365,9 @@ document.getElementById("formNota").onsubmit = async (e) => {
         btn.textContent = 'Salvar';
     }
 };
-
-// ==========================================
-// FUNÇÃO PARA ABRIR O POPUP DE DETALHES DA CATEGORIA
-// ==========================================
 window.abrirDetalhesCategoria = function(nome, itens, total, cor) {
     document.getElementById('tituloDetalhesCategoria').textContent = `Detalhes: ${nome}`;
     document.getElementById('tituloDetalhesCategoria').style.color = cor;
-    
     let h = '<table style="width:100%; border-collapse: collapse; font-size: 13px;">';
     itens.forEach(item => {
         const dt = new Date(item.data_vencimento + 'T00:00:00').toLocaleDateString('pt-BR');
@@ -1728,9 +1379,7 @@ window.abrirDetalhesCategoria = function(nome, itens, total, cor) {
         `;
     });
     h += '</table>';
-    
     document.getElementById('listaDetalhesCategoria').innerHTML = h;
     document.getElementById('totalDetalhesCategoria').innerHTML = `Total: <span style="color: ${cor};">${formatarReal(total)}</span>`;
-    
     document.getElementById('popupDetalhesCategoria').classList.add('ativo');
 };
